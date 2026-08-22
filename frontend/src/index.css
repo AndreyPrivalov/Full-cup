@@ -1,0 +1,40 @@
+@import "./design-tokens.css";
+@import "./atoms.css";
+@import "./molecules.css";
+@import "./organisms.css";
+
+/* Global Reset & Strict Design Rules */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  /* Enforce No Visual Dividers (Lines/Shadows) on root layout level.
+     Shadows and borders are allowed explicitly via molecules/organisms */
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--clr-bg-page);
+  color: var(--clr-text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+button {
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  background: none;
+}

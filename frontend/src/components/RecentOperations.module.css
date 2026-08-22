@@ -1,0 +1,9 @@
+.allLink {
+  color: var(--clr-text-secondary);
+  transition: color 0.2s;
+  cursor: pointer;
+}
+
+.allLink:hover {
+  color: var(--clr-text-primary);
+}

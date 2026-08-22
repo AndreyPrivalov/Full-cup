@@ -1,0 +1,119 @@
+:root {
+  /* ==========================================
+     BASE TOKENS
+     ========================================== */
+  --clr-base-white: #ffffff;
+  --clr-base-gray-50: #f9fafb;
+  --clr-base-gray-100: #f5f5f5;
+  --clr-base-gray-200: #e5e5e5;
+  --clr-base-gray-300: #d4d4d4;
+  --clr-base-gray-400: #a3a3a3;
+  --clr-base-gray-500: #737373;
+  --clr-base-gray-700: #404040;
+  --clr-base-gray-900: #262626;
+
+  --clr-base-green-500: #16a34a;
+  --clr-base-green-600: #15803d;
+  --clr-base-red-500: #ef4444;
+  --clr-base-red-600: #dc2626;
+
+  /* ==========================================
+     COLORS
+     ========================================== */
+  /* Backgrounds */
+  --clr-bg-page: var(--clr-base-gray-100);
+  --clr-bg-surface: var(--clr-base-white);
+  --clr-bg-accent: var(--clr-base-gray-900);
+  --clr-bg-semantic-success: var(--clr-base-green-500);
+  --clr-bg-semantic-error: var(--clr-base-red-500);
+  --clr-bg-semantic-expense: var(--clr-base-red-500);
+  --clr-bg-semantic-income: var(--clr-base-green-500);
+
+  /* Texts */
+  --clr-text-primary: var(--clr-base-gray-900);
+  --clr-text-secondary: var(--clr-base-gray-500);
+  --clr-text-inverse: var(--clr-base-white);
+  --clr-text-disabled: var(--clr-base-gray-400);
+  --clr-text-semantic-success: var(--clr-base-green-600);
+  --clr-text-semantic-error: var(--clr-base-red-600);
+  --clr-text-semantic-expense: var(--clr-base-red-600);
+  --clr-text-semantic-income: var(--clr-base-green-600);
+  --clr-text-placeholder: var(--clr-base-gray-500);
+
+  /* Controls */
+  --clr-control-default: var(--clr-base-white);
+  --clr-control-surface: var(--clr-base-gray-100);
+  --clr-control-active: var(--clr-base-gray-100);
+  --clr-control-link: var(--clr-base-gray-900);
+
+  /* Borders */
+  --clr-border-primary: var(--clr-base-gray-300);
+  --clr-border-secondary: var(--clr-base-gray-200);
+  --clr-border-interactive: var(--clr-base-gray-400);
+  --clr-border-semantic-error: var(--clr-base-red-500);
+
+  /* ==========================================
+     TYPOGRAPHY
+     ========================================== */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-semibold: var(--font-weight-semibold);
+
+  /* Base Text m is 18px (1.125rem) / 28px (1.75rem) */
+  --font-size-h1: 2.25rem; /* 36px */
+  --line-height-h1: 2.75rem; /* 44px */
+
+  --font-size-h2: 1.5rem; /* 24px */
+  --line-height-h2: 2rem; /* 32px */
+
+  --font-size-h3: 1.25rem; /* 20px */
+  --line-height-h3: 1.625rem; /* 26px */
+
+  --font-size-h4: 1.125rem; /* 18px */
+  --line-height-h4: 1.5rem; /* 24px */
+
+  --font-size-l: 1.75rem; /* 28px */
+  --line-height-l: 2.5rem; /* 40px */
+  --line-height-ld: 2.25rem; /* 36px */
+
+  --font-size-m: 1.25rem; /* 20px */
+  --line-height-m: 1.75rem; /* 28px */
+  --line-height-md: 1.5rem; /* 24px */
+
+  --font-size-s: 1rem; /* 16px */
+  --line-height-s: 1.5rem; /* 24px */
+  --line-height-sd: 1.25rem; /* 20px */
+
+  /* ==========================================
+     SPACING (Fixed Scale)
+     ========================================== */
+  --spc-0: 0;
+  --spc-2: 0.125rem; /* 2px */
+  --spc-4: 0.25rem; /* 4px */
+  --spc-8: 0.5rem; /* 8px */
+  --spc-12: 0.75rem; /* 12px */
+  --spc-16: 1rem; /* 16px */
+  --spc-20: 1.25rem; /* 20px */
+  --spc-24: 1.5rem; /* 24px */
+  --spc-32: 2rem; /* 32px */
+  --spc-40: 2.5rem; /* 40px */
+  --spc-48: 3rem; /* 48px */
+  --spc-64: 4rem; /* 64px */
+  --spc-80: 5rem; /* 80px */
+
+  /* ==========================================
+     RADII & SHADOWS
+     ========================================== */
+  --radius-xs: 0.25rem;
+  --radius-s: 0.375rem;
+  --radius-m: 0.5rem;
+  --radius-l: 1rem;
+  --radius-circle: 9999px;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
