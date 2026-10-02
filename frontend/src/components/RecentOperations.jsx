@@ -1,5 +1,5 @@
+import { formatDateShort } from "../utils";
 import { OperationRow } from "./OperationRow";
-import styles from "./RecentOperations.module.css";
 import { SectionBlock } from "./SectionBlock";
 
 export function RecentOperations({ operations = [] }) {
@@ -7,17 +7,17 @@ export function RecentOperations({ operations = [] }) {
     <SectionBlock
       title="Последние записи"
       subtitle={
-        <span className="a-clr-text-primary a-font-medium">
+        <span className="a-clr-text-primary a-font-bold">
           {operations.length > 0 && operations[0].date
-            ? new Date(operations[0].date).toLocaleDateString("ru-RU", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })
+            ? formatDateShort(operations[0].date)
             : "Нет записей"}
         </span>
       }
-      controls={<span className={styles.allLink}>Все операции</span>}
+      controls={
+        <span className="m-nav-item" data-size="s">
+          Все операции
+        </span>
+      }
       bodyClassName="a-flex a-flex-col a-gap-2"
     >
       {operations.length === 0 && (

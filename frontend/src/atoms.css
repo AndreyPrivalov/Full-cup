@@ -162,22 +162,12 @@
 .a-text-h1 {
   font-size: var(--font-size-h1);
   line-height: var(--line-height-h1);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-bold);
 }
 .a-text-h2 {
   font-size: var(--font-size-h2);
   line-height: var(--line-height-h2);
-  font-weight: var(--font-weight-medium);
-}
-.a-text-h3 {
-  font-size: var(--font-size-h3);
-  line-height: var(--line-height-h3);
-  font-weight: var(--font-weight-semibold);
-}
-.a-text-h4 {
-  font-size: var(--font-size-h4);
-  line-height: var(--line-height-h4);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
 }
 .a-text-l {
   font-size: var(--font-size-l);
@@ -206,12 +196,6 @@
 
 .a-font-regular {
   font-weight: var(--font-weight-regular);
-}
-.a-font-medium {
-  font-weight: var(--font-weight-medium);
-}
-.a-font-semibold {
-  font-weight: var(--font-weight-semibold);
 }
 .a-font-bold {
   font-weight: var(--font-weight-bold);
@@ -246,12 +230,6 @@
 .a-clr-text-semantic-error {
   color: var(--clr-text-semantic-error);
 }
-.a-clr-text-semantic-expense {
-  color: var(--clr-text-semantic-expense);
-}
-.a-clr-text-semantic-income {
-  color: var(--clr-text-semantic-income);
-}
 
 /* Colors - Background */
 .a-bg-page {
@@ -269,20 +247,14 @@
 .a-bg-semantic-error {
   background-color: var(--clr-bg-semantic-error);
 }
-.a-bg-semantic-expense {
-  background-color: var(--clr-bg-semantic-expense);
-}
-.a-bg-semantic-income {
-  background-color: var(--clr-bg-semantic-income);
-}
-.a-bg-semantic-income-hatched {
+.a-bg-semantic-success-hatched {
   background-image: linear-gradient(
     -45deg,
-    var(--clr-bg-semantic-income) 25%,
+    var(--clr-bg-semantic-success) 25%,
     transparent 25%,
     transparent 50%,
-    var(--clr-bg-semantic-income) 50%,
-    var(--clr-bg-semantic-income) 75%,
+    var(--clr-bg-semantic-success) 50%,
+    var(--clr-bg-semantic-success) 75%,
     transparent 75%,
     transparent
   );
@@ -306,13 +278,27 @@
   border-radius: var(--radius-circle);
 }
 
-/* Elevation */
-.a-shadow-sm {
-  box-shadow: var(--shadow-sm);
+/* Utility Helpers */
+.a-cursor-pointer {
+  cursor: pointer;
 }
-.a-shadow-md {
-  box-shadow: var(--shadow-md);
+.a-w-full {
+  width: 100%;
 }
-.a-shadow-lg {
-  box-shadow: var(--shadow-lg);
+.a-h-full {
+  height: 100%;
+}
+.a-overflow-x-auto {
+  overflow-x: auto;
+}
+.a-overflow-hidden {
+  overflow: hidden;
+}
+.a-whitespace-nowrap {
+  white-space: nowrap;
+}
+.a-text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

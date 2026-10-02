@@ -1,10 +1,14 @@
 {
   "name": "fullcup",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev:backend": "cd backend && node index.js",
+    "dev:backend": "cd backend && node --watch index.js",
+    "db:import-excel": "node scripts/import_excel.js",
+    "backup:export": "node scripts/backup_csv.js export",
+    "backup:import": "node scripts/backup_csv.js import",
     "check": "biome check .",
     "check:fix": "biome check --write ."
   },

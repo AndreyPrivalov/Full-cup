@@ -1,7 +1,7 @@
-import { useState } from "react";
-import styles from "../App.module.css";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { api } from "../api";
 import { useDashboard } from "../hooks/useDashboard";
-import { useOperations } from "../hooks/useOperations";
 import { getPrevMonthToDateString } from "../utils";
 import { BudgetsList } from "./BudgetsList";
 import { CategoriesList } from "./CategoriesList";
@@ -11,16 +11,15 @@ import { RecentOperations } from "./RecentOperations";
 export function DashboardView({ operationType }) {
   const [controlPeriod, setControlPeriod] = useState("прошлым месяцем"); // Дефолтный период
 
-  const formattedPeriod =
-    controlPeriod === getPrevMonthToDateString()
-      ? "prev_month_to_date"
-      : controlPeriod === "средним за 3 мес"
-        ? "avg_3_months"
-        : controlPeriod === "средним за 6 мес"
-          ? "avg_6_months"
-          : controlPeriod === "средним за год"
-            ? "avg_12_months"
-            : "prev_month";
+  const prevMonthString = useMemo(() => getPrevMonthToDateString(), []);
+
+  const formattedPeriod = useMemo(() => {
+    if (controlPeriod === prevMonthString) return "prev_month_to_date";
+    if (controlPeriod === "средним за 3 мес") return "avg_3_months";
+    if (controlPeriod === "средним за 6 мес") return "avg_6_months";
+    if (controlPeriod === "средним за год") return "avg_12_months";
+    return "prev_month";
+  }, [controlPeriod, prevMonthString]);
 
   const {
     data: dashboard,
@@ -29,20 +28,19 @@ export function DashboardView({ operationType }) {
   } = useDashboard(formattedPeriod);
 
   const {
-    data: operationsData,
+    data: recentOperations = [],
     isLoading: isOperationsLoading,
     isError: isOperationsError,
-  } = useOperations();
+  } = useQuery({
+    queryKey: ["recent-operations", operationType],
+    queryFn: () => api.getRecentOperations(10, operationType),
+  });
 
-  if (isDashboardLoading || isOperationsLoading)
-    return <div className={styles.appLoading}>Загрузка данных...</div>;
+  if ((isDashboardLoading && !dashboard) || (isOperationsLoading && !recentOperations.length))
+    return <div className="a-text-m a-clr-text-secondary a-mt-24">Загрузка данных...</div>;
   if (isDashboardError || isOperationsError)
-    return <div className={styles.appLoading}>Ошибка загрузки данных</div>;
-  if (!dashboard) return <div className={styles.appLoading}>Нет данных</div>;
-
-  const operations = operationsData
-    ? [...operationsData].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10)
-    : [];
+    return <div className="a-text-m a-clr-text-semantic-error a-mt-24">Ошибка загрузки данных</div>;
+  if (!dashboard) return <div className="a-text-m a-clr-text-secondary a-mt-24">Нет данных</div>;
 
   return (
     <PageGrid columns={2}>
@@ -66,17 +64,11 @@ export function DashboardView({ operationType }) {
 
       {/* Правая/Центральная колонка - Бюджеты и Последние операции */}
       <PageColumn position="right">
-        <RecentOperations operations={operations.filter((op) => op.type === operationType)} />
+        <RecentOperations operations={recentOperations} />
         <BudgetsList
           type="bank"
           title="Кайф-баланс"
           data={dashboard.banks}
-          daysLeft={dashboard.days_until_reset}
-        />
-        <BudgetsList
-          type="project"
-          title="Активные проекты"
-          data={dashboard.projects}
           daysLeft={dashboard.days_until_reset}
         />
       </PageColumn>

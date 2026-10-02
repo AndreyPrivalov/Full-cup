@@ -2,8 +2,15 @@ const API_URL = `http://${window.location.hostname}:3001/api`;
 
 const handleResponse = async (response) => {
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || response.statusText);
+    const errorText = await response.text();
+    let errorMessage;
+    try {
+      const json = JSON.parse(errorText);
+      errorMessage = json.error || json.message;
+    } catch {
+      errorMessage = errorText;
+    }
+    throw new Error(errorMessage || response.statusText);
   }
   return response.json();
 };
@@ -41,7 +48,21 @@ export const api = {
     }),
 
   // Операции (Транзакции)
-  getOperations: () => fetch(`${API_URL}/transactions`).then(handleResponse),
+  getOperations: (params = {}) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && value !== "") {
+        query.append(key, value);
+      }
+    }
+    const qs = query.toString();
+    return fetch(`${API_URL}/transactions${qs ? `?${qs}` : ""}`).then(handleResponse);
+  },
+  getRecentOperations: (limit = 10, type) => {
+    return fetch(
+      `${API_URL}/transactions/recent?limit=${limit}${type ? `&type=${type}` : ""}`,
+    ).then(handleResponse);
+  },
   addOperation: (data) =>
     fetch(`${API_URL}/transactions`, {
       method: "POST",
@@ -77,40 +98,13 @@ export const api = {
       body: JSON.stringify(data),
     }).then(handleResponse),
 
-  // Проекты
-  getProjects: () => fetch(`${API_URL}/projects`).then(handleResponse),
-  addProject: (data) =>
-    fetch(`${API_URL}/projects`, {
+  // Бэкап и Восстановление
+  getBackupStats: () => fetch(`${API_URL}/backup/stats`).then(handleResponse),
+  getExportTableUrl: (table) => `${API_URL}/backup/export/${table}`,
+  importTableCsv: (table, csvText, mode = "replace") =>
+    fetch(`${API_URL}/backup/import/${table}?mode=${mode}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }).then(handleResponse),
-  updateProject: (id, data) =>
-    fetch(`${API_URL}/projects/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }).then(handleResponse),
-  deleteProject: (id) =>
-    fetch(`${API_URL}/projects/${id}`, {
-      method: "DELETE",
-    }).then((res) => {
-      if (!res.ok) throw new Error("Ошибка при удалении проекта");
-      return null;
-    }),
-  getProjectsBudgets: (month) =>
-    fetch(`${API_URL}/projects/budgets?month=${month}`).then(handleResponse),
-  getProjectsMonths: () => fetch(`${API_URL}/projects/budgets/months`).then(handleResponse),
-  updateProjectBudgetLimits: (data) =>
-    fetch(`${API_URL}/projects/budgets/limits`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }).then(handleResponse),
-  updateProjectBudgetAllocation: (data) =>
-    fetch(`${API_URL}/projects/budgets/allocations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      headers: { "Content-Type": "text/csv; charset=utf-8" },
+      body: csvText,
     }).then(handleResponse),
 };

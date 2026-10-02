@@ -1,41 +1,71 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { api } from "../api";
-import { formatCurrency } from "../utils";
+import { invalidateTransactionCaches } from "../hooks/invalidateQueries";
+import { useEntityList } from "../hooks/useEntityList";
+import { formatCurrency, getLocalMonthString } from "../utils";
 import { DeleteButton } from "./DeleteButton";
-import styles from "./KaifBalanceView.module.css";
 import { OperationRow } from "./OperationRow";
 import { PageColumn, PageGrid } from "./PageLayout/index.jsx";
 
 export const KaifBalanceView = () => {
   const queryClient = useQueryClient();
 
-  // Получаем банки
-  const { data: banks = [] } = useQuery({
-    queryKey: ["banks"],
-    queryFn: api.getBanks,
-  });
+  // Получаем текущий месяц (YYYY-MM) для фильтрации транзакций
+  const currentMonthPrefix = useMemo(() => getLocalMonthString(), []);
 
-  // Получаем все транзакции, чтобы отфильтровать нужные (для простоты)
+  const { data: banks = [] } = useEntityList("banks");
   const { data: operations = [] } = useQuery({
-    queryKey: ["operations"],
-    queryFn: api.getOperations,
+    queryKey: ["operations", "month", currentMonthPrefix],
+    queryFn: () => api.getOperations({ month: currentMonthPrefix, bank_id: "not_null" }),
   });
 
   const addBankMutation = useMutation({
     mutationFn: api.addBank,
-    onSuccess: () => queryClient.invalidateQueries(["banks"]),
+    onSuccess: () => {
+      invalidateTransactionCaches(queryClient);
+    },
   });
 
   const updateBankMutation = useMutation({
     mutationFn: ({ id, data }) => api.updateBank(id, data),
-    onSuccess: () => queryClient.invalidateQueries(["banks"]),
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ["banks"] });
+      const previousBanks = queryClient.getQueryData(["banks"]);
+
+      queryClient.setQueryData(["banks"], (old = []) =>
+        old.map((b) => (b.id === id ? { ...b, ...data } : b)),
+      );
+
+      return { previousBanks };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousBanks) {
+        queryClient.setQueryData(["banks"], context.previousBanks);
+      }
+    },
+    onSettled: () => {
+      invalidateTransactionCaches(queryClient);
+    },
   });
 
   const deleteBankMutation = useMutation({
     mutationFn: api.deleteBank,
-    onSuccess: () => {
-      queryClient.invalidateQueries(["banks"]);
-      queryClient.invalidateQueries(["operations"]);
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["banks"] });
+      const previousBanks = queryClient.getQueryData(["banks"]);
+
+      queryClient.setQueryData(["banks"], (old = []) => old.filter((b) => b.id !== id));
+
+      return { previousBanks };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previousBanks) {
+        queryClient.setQueryData(["banks"], context.previousBanks);
+      }
+    },
+    onSettled: () => {
+      invalidateTransactionCaches(queryClient);
     },
   });
 
@@ -85,13 +115,25 @@ export const KaifBalanceView = () => {
     }
   };
 
-  // Получаем текущий месяц (YYYY-MM) для фильтрации транзакций фронтендом,
-  const currentMonthPrefix = new Date().toISOString().substring(0, 7);
+  const bankOperationsMap = useMemo(() => {
+    const map = new Map();
+    for (const op of operations) {
+      if (op.bank_id && op.date?.startsWith(currentMonthPrefix)) {
+        let list = map.get(op.bank_id);
+        if (!list) {
+          list = [];
+          map.set(op.bank_id, list);
+        }
+        list.push(op);
+      }
+    }
+    return map;
+  }, [operations, currentMonthPrefix]);
 
   return (
     <PageGrid columns={1}>
       <PageColumn position="left">
-        <div className={styles.columns}>
+        <div className="o-kaif-grid">
           {banks.map((bank) => {
             const spent = bank.spent_this_month || 0;
             const limit = bank.month_limit;
@@ -100,18 +142,14 @@ export const KaifBalanceView = () => {
             const remainingPercent = Math.max(0, 100 - progressPercent);
             const isWarning = progressPercent >= 90;
 
-            // Фильтруем транзакции для этого банка за текущий месяц
-            const bankOperations = operations.filter(
-              (op) => op.bank_id === bank.id && op.date.startsWith(currentMonthPrefix),
-            );
+            const bankOperations = bankOperationsMap.get(bank.id) || [];
 
             return (
-              <div key={bank.id} className={`${styles.column} a-flex a-flex-col`}>
+              <div key={bank.id} className="a-flex a-flex-col">
                 <div className="a-flex a-justify-between a-items-center">
                   <div className="a-flex a-items-baseline a-gap-4">
                     <span
-                      className="a-text-sd a-clr-text-primary"
-                      style={{ cursor: "pointer" }}
+                      className="a-text-sd a-clr-text-primary a-cursor-pointer"
                       onClick={() => handleEditName(bank)}
                     >
                       {bank.name}
@@ -128,8 +166,7 @@ export const KaifBalanceView = () => {
                 <div className="a-flex a-justify-between a-items-baseline a-mt-8">
                   <span className="a-text-ld a-clr-text-primary">{formatCurrency(remaining)}</span>
                   <span
-                    className="a-text-sd a-clr-text-primary"
-                    style={{ cursor: "pointer" }}
+                    className="a-text-sd a-clr-text-primary a-cursor-pointer"
                     onClick={() => handleEditLimit(bank)}
                   >
                     из {limit.toLocaleString("ru-RU")}
@@ -145,14 +182,14 @@ export const KaifBalanceView = () => {
                   </div>
                 </div>
 
-                <div className={`${styles.transactionsList} a-mt-16`}>
+                <div className="a-flex a-flex-col a-gap-8 a-mt-16">
                   {bankOperations.length === 0 && (
                     <div className="a-text-sd a-clr-text-secondary a-mt-8">
                       Нет операций в этом месяце
                     </div>
                   )}
                   {bankOperations.map((tx) => (
-                    <OperationRow key={tx.id} operation={tx} showDate={true} showBadges={false} />
+                    <OperationRow key={tx.id} operation={tx} showBadges={false} />
                   ))}
                 </div>
               </div>

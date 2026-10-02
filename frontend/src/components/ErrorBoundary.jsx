@@ -19,16 +19,13 @@ export class ErrorBoundary extends Component {
     if (this.state.hasError) {
       return (
         <div
-          style={{
-            padding: "20px",
-            backgroundColor: "#fee",
-            color: "#900",
-            fontFamily: "monospace",
-          }}
+          className="m-card a-clr-text-semantic-error a-gap-12"
+          data-context="overlay"
+          data-size="m"
         >
-          <h2>Что-то пошло не так (ErrorBoundary)</h2>
-          <details style={{ whiteSpace: "pre-wrap" }}>
-            <summary>Нажми для деталей ошибки</summary>
+          <h2 className="a-text-h2">Что-то пошло не так (ErrorBoundary)</h2>
+          <details className="a-text-s" style={{ whiteSpace: "pre-wrap" }}>
+            <summary className="a-cursor-pointer a-font-bold">Нажми для деталей ошибки</summary>
             {this.state.error?.toString()}
             <br />
             {this.state.errorInfo?.componentStack}

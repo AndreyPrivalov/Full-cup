@@ -33,9 +33,9 @@ Styles are monolithic (including font size, line-height, and font weight).
 Spacing is based on a fixed, simple pixel scale defined directly in tokens. This single scale applies identically to both horizontal and vertical spacing (margins, paddings, gaps, gutters).
 - **Scale Values:** `0`, `2`, `4`, `8`, `12`, `16`, `20`, `24`, `32`, `40`, `48`, `64`, `80`.
 
-### Radii & Shadows
+### Radii
 - **Border Radius:** `XS`, `S`, `M`, `L`, `Circle`.
-- **Elevation (Shadows):** `sm`, `md`, `lg`.
+- **No Shadows:** Shadows are completely excluded from the design system. Elevation is expressed via background contrast and spacing.
 
 ---
 

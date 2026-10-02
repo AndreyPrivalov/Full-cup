@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 .pnp
 .pnp.js
@@ -35,3 +35,8 @@ Thumbs.db
 
 # Temporary / Scratch files
 tmp_*.json
+
+# Data, backups, and user spreadsheets
+backups/
+*.xlsx
+*.xls

@@ -18,15 +18,14 @@ try {
         DELETE FROM savings;
         DELETE FROM categories;
         DELETE FROM banks;
-        DELETE FROM projects;
         
         -- Сброс автоинкрементов
-        DELETE FROM sqlite_sequence WHERE name IN ('transactions', 'savings', 'categories', 'banks', 'projects');
+        DELETE FROM sqlite_sequence WHERE name IN ('transactions', 'savings', 'categories', 'banks');
     `);
 
   // 2. Справочники
   console.log("Inserting reference data...");
-  const insertCategory = db.prepare(`INSERT INTO categories (name, type) VALUES (?, ?)`);
+  const insertCategory = db.prepare("INSERT INTO categories (name, type) VALUES (?, ?)");
   const categories = [
     ["Продукты", "expense"],
     ["Транспорт", "expense"],
@@ -48,7 +47,7 @@ try {
     insertCategory.run(c[0], c[1]);
   });
 
-  const insertBank = db.prepare(`INSERT INTO banks (name, month_limit) VALUES (?, ?)`);
+  const insertBank = db.prepare("INSERT INTO banks (name, month_limit) VALUES (?, ?)");
   const banks = [
     ["Продукты на месяц", 40000],
     ["Кайф Андрея", 15000],
@@ -60,20 +59,9 @@ try {
     insertBank.run(b[0], b[1]);
   });
 
-  const insertProject = db.prepare(`INSERT INTO projects (name, month_limit) VALUES (?, ?)`);
-  const projects = [
-    ["Отпуск 2026", 15000],
-    ["Ремонт кухни", 25000],
-    ["Ноутбук", 10000],
-  ];
-  projects.forEach((p) => {
-    insertProject.run(p[0], p[1]);
-  });
-
   // Fetch IDs
-  const cats = db.prepare(`SELECT id, name, type FROM categories`).all();
-  const bks = db.prepare(`SELECT id, name, month_limit FROM banks`).all();
-  const prjs = db.prepare(`SELECT id, name, month_limit FROM projects`).all();
+  const cats = db.prepare("SELECT id, name, type FROM categories").all();
+  const bks = db.prepare("SELECT id, name, month_limit FROM banks").all();
 
   const _expenseCats = cats.filter((c) => c.type === "expense");
   const incomeCats = cats.filter((c) => c.type === "income");
@@ -81,7 +69,7 @@ try {
   // 3. Транзакции за последние 4 месяца (Декабрь, Январь, Февраль, Март)
   console.log("Generating transactions...");
   const insertTransaction = db.prepare(
-    `INSERT INTO transactions (amount, type, category_id, bank_id, project_id, date, comment) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    "INSERT INTO transactions (amount, type, category_id, bank_id, date, comment) VALUES (?, ?, ?, ?, ?, ?)",
   );
 
   const today = new Date();
@@ -105,12 +93,6 @@ try {
       bankSpent[b.id] = 0;
     });
 
-    // Track project limits
-    const projectSpent = {};
-    prjs.forEach((p) => {
-      projectSpent[p.id] = 0;
-    });
-
     // Доходы
     // Зарплата
     const salaryCat = incomeCats.find((c) => c.name === "Зарплата");
@@ -119,7 +101,6 @@ try {
       "income",
       salaryCat.id,
       null,
-      null,
       `${y}-${String(m + 1).padStart(2, "0")}-05`,
       "Аванс",
     );
@@ -127,7 +108,6 @@ try {
       150000,
       "income",
       salaryCat.id,
-      null,
       null,
       `${y}-${String(m + 1).padStart(2, "0")}-20`,
       "Остаток зарплаты",
@@ -140,7 +120,6 @@ try {
         15000 + Math.floor(Math.random() * 20000),
         "income",
         sideCat.id,
-        null,
         null,
         `${y}-${String(m + 1).padStart(2, "0")}-15`,
         "Фриланс",
@@ -172,17 +151,6 @@ try {
         }
       }
 
-      // Assign project roughly 15% of time, only if not assigned to bank
-      let project_id = null;
-      if (!bank_id && Math.random() > 0.85) {
-        const prj = prjs[Math.floor(Math.random() * prjs.length)];
-        // projects also have month_limit now! check it
-        if (projectSpent[prj.id] + amount <= prj.month_limit) {
-          project_id = prj.id;
-          projectSpent[prj.id] += amount;
-        }
-      }
-
       // adjust amount specifically for groceries
       if (cat.name === "Продукты") {
         amount = 1500 + Math.floor(Math.random() * 4000);
@@ -193,7 +161,6 @@ try {
         "expense",
         cat.id,
         bank_id,
-        project_id,
         dateStr,
         `Расход в категории ${cat.name}`,
       );
@@ -202,7 +169,7 @@ try {
 
   // 4. Срезы накоплений
   console.log("Generating savings snapshots...");
-  const insertSaving = db.prepare(`INSERT INTO savings (date, cash, electronic) VALUES (?, ?, ?)`);
+  const insertSaving = db.prepare("INSERT INTO savings (date, cash, electronic) VALUES (?, ?, ?)");
   let currentCash = 50000;
   let currentElectronic = 200000;
 

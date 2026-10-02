@@ -18,18 +18,18 @@ Colors are classified by their application type. Each type has its own priority 
 - **Borders:** `Primary`, `Secondary/Muted`, `Interactive` (control borders), `Semantic`.
 
 ### Typography
-Styles are monolithic (including font size, line-height, and font weight).
-- **Headings:** `h1`, `h2`, `h3`, `h4`.
-- **Body Text:** `l`, `ld` (dense), `m`, `md` (dense), `s`, `sd` (dense).
-*Note: Base text `m` is set to `18px / 28px` regular.*
+Styles are monolithic (including font size, line-height, and font weight). Статичные размеры (без адаптива).
+- **Headings:** `h1` (32px / 40px), `h2` (22px / 28px).
+- **Body Text:** `l` (24px / 36px), `ld` (24px / 32px), `m` (18px / 24px), `md` (18px / 22px), `s` (16px / 24px), `sd` (16px / 20px).
+- **Font Weights:** `regular` (400), `bold` (700).
 
 ### Spacing
 Spacing is based on a fixed, simple pixel scale defined directly in tokens. This single scale applies identically to both horizontal and vertical spacing (margins, paddings, gaps, gutters).
 - **Scale Values:** `0`, `2`, `4`, `8`, `12`, `16`, `20`, `24`, `32`, `40`, `48`, `64`, `80`.
 
-### Radii & Shadows
+### Radii
 - **Border Radius:** `XS`, `S`, `M`, `L`, `Circle`.
-- **Elevation (Shadows):** `sm`, `md`, `lg`.
+- **No Shadows:** Shadows are completely excluded from the design system. Elevation is expressed via background contrast and spacing.
 
 ---
 

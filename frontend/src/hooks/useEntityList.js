@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 
-export function useEntityList(type) {
-  const queryKey = type === "banks" ? ["banks"] : ["projects"];
-  const queryFn = type === "banks" ? api.getBanks : api.getProjects;
+export function useEntityList(_type = "banks") {
+  const queryKey = ["banks"];
+  const queryFn = api.getBanks;
 
   return useQuery({
     queryKey,

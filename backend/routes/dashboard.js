@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import express from "express";
-import { banks, categories, project_allocations, projects, transactions } from "shared/schema.js";
+import { banks, categories, transactions } from "shared/schema.js";
 import { db } from "../db/index.js";
 import { apiHandler } from "../utils/apiHandler.js";
 
@@ -81,6 +81,9 @@ router.get(
       controlPeriodEnd = formatDate(new Date(currentYear, currentMonth, 0));
     }
 
+    const minDate = controlPeriodStart < currentMonthStart ? controlPeriodStart : currentMonthStart;
+    const maxDate = controlPeriodEnd > currentMonthEnd ? controlPeriodEnd : currentMonthEnd;
+
     const getCategoriesData = (type) => {
       return db
         .select({
@@ -98,7 +101,7 @@ router.get(
         .from(categories)
         .leftJoin(
           transactions,
-          sql`${categories.id} = ${transactions.category_id} AND ${transactions.type} = ${type}`,
+          sql`${categories.id} = ${transactions.category_id} AND ${transactions.type} = ${type} AND ${transactions.date} >= ${minDate} AND ${transactions.date} <= ${maxDate}`,
         )
         .where(eq(categories.type, type))
         .groupBy(categories.id)
@@ -125,35 +128,10 @@ router.get(
 
     const banks_result = banksRaw.map((b) => calcItemWithPercentage(b, "spent_this_month"));
 
-    const currentMonthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
-
-    const projectsRaw = db
-      .select({
-        id: projects.id,
-        name: projects.name,
-        month_limit: sql`COALESCE(${project_allocations.limit}, 0)`.mapWith(Number),
-        spent_this_month: sql`COALESCE(SUM(${transactions.amount}), 0)`.mapWith(Number),
-      })
-      .from(projects)
-      .leftJoin(
-        project_allocations,
-        sql`${projects.id} = ${project_allocations.project_id} AND ${project_allocations.month} = ${currentMonthStr}`,
-      )
-      .leftJoin(
-        transactions,
-        sql`${projects.id} = ${transactions.project_id} AND ${transactions.type} = 'expense' AND ${transactions.date} >= ${currentMonthStart} AND ${transactions.date} <= ${currentMonthEnd}`,
-      )
-      .where(eq(projects.status, "active"))
-      .groupBy(projects.id)
-      .all();
-
-    const projects_result = projectsRaw.map((p) => calcItemWithPercentage(p, "spent_this_month"));
-
     res.json({
       categories_expenses,
       categories_incomes,
       banks: banks_result,
-      projects: projects_result,
       days_until_reset: getDaysUntilReset(),
     });
   }),

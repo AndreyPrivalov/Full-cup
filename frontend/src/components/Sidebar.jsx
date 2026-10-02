@@ -3,24 +3,20 @@ import { insertTransactionSchema } from "shared/schemas/transactions.js";
 import { useAddOperation } from "../hooks/useAddOperation";
 import { useCategories } from "../hooks/useCategories";
 import { useEntityList } from "../hooks/useEntityList";
-import { Dropdown } from "./Dropdown";
-import styles from "./Sidebar.module.css";
+import { getLocalDateString } from "../utils";
 
 export function Sidebar({ type, setType }) {
   const { data: categoriesData } = useCategories();
   const { data: banksData } = useEntityList("banks");
-  const { data: projectsData } = useEntityList("projects");
 
   const dbCategories = categoriesData ?? [];
   const dbBanks = banksData ?? [];
-  const dbProjects = (projectsData ?? []).filter((p) => p.status === "active");
 
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(getLocalDateString());
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [comment, setComment] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [selectedBankIds, setSelectedBankIds] = useState([]);
+  const [selectedBankId, setSelectedBankId] = useState(null);
   const [validationError, setValidationError] = useState("");
 
   const addOperationMutation = useAddOperation();
@@ -28,11 +24,11 @@ export function Sidebar({ type, setType }) {
   const textareaRef = useRef(null);
 
   useEffect(() => {
-    if (textareaRef.current) {
-      const _unused = comment; // Trigger update on comment change
-      textareaRef.current.style.height = "72px";
-      const scrollHeight = textareaRef.current.scrollHeight;
-      textareaRef.current.style.height = `${Math.max(72, scrollHeight)}px`;
+    const el = textareaRef.current;
+    if (el && typeof comment === "string") {
+      el.style.height = "72px";
+      const scrollHeight = el.scrollHeight;
+      el.style.height = `${Math.max(72, scrollHeight)}px`;
     }
   }, [comment]);
 
@@ -54,8 +50,7 @@ export function Sidebar({ type, setType }) {
       amount: Number(amount),
       category_id: categoryId,
       comment,
-      project_id: projectId || undefined,
-      bank_id: selectedBankIds.length > 0 ? selectedBankIds[0] : undefined,
+      bank_id: selectedBankId || undefined,
     });
 
     if (!validation.success) {
@@ -64,6 +59,7 @@ export function Sidebar({ type, setType }) {
     }
 
     setValidationError("");
+    setApiError("");
 
     addOperationMutation.mutate(
       {
@@ -72,18 +68,17 @@ export function Sidebar({ type, setType }) {
         amount: Number(amount),
         category_id: categoryId,
         comment,
-        project_id: projectId || null,
-        bank_id: selectedBankIds.length > 0 ? selectedBankIds : null,
+        bank_id: selectedBankId || null,
       },
       {
         onSuccess: () => {
           setAmount("");
           setComment("");
-          setProjectId("");
-          setSelectedBankIds([]);
+          setSelectedBankId(null);
+          setApiError("");
         },
         onError: (err) => {
-          console.error("Failed to add operation", err);
+          setApiError(err.message || "Ошибка при сохранении операции");
         },
       },
     );
@@ -92,8 +87,8 @@ export function Sidebar({ type, setType }) {
   const currentCategories = dbCategories.filter((c) => c.type === type);
 
   return (
-    <div className={styles.sidebar}>
-      <div className={styles.header}>
+    <div className="o-sidebar">
+      <div className="o-sidebar-header">
         <div className="a-flex a-gap-8">
           <span
             className="m-tab"
@@ -113,14 +108,14 @@ export function Sidebar({ type, setType }) {
           </span>
         </div>
         <div
-          className={styles.datePickerWrapper}
+          className="o-sidebar-datepicker"
           onClick={(e) => {
             try {
               e.currentTarget.querySelector("input")?.showPicker();
             } catch (_err) {}
           }}
         >
-          <span className={styles.dateDisplay}>
+          <span className="o-sidebar-datepicker-display">
             {date
               ? new Date(date).toLocaleDateString("ru-RU", {
                   day: "numeric",
@@ -133,14 +128,14 @@ export function Sidebar({ type, setType }) {
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className={styles.dateInput}
+            className="o-sidebar-datepicker-input"
             title="Дата операции"
           />
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className={styles.form}>
-        <div className={styles.inputWrapper}>
+      <form onSubmit={handleSubmit} className="o-sidebar-form">
+        <div className="o-sidebar-input-wrapper">
           <input
             type="number"
             placeholder="Сумма"
@@ -151,12 +146,12 @@ export function Sidebar({ type, setType }) {
             data-context="overlay"
             required
           />
-          <div className={styles.currencySymbol}>₽</div>
+          <div className="o-sidebar-currency">₽</div>
         </div>
 
-        <div className="m-choice-list">
+        <div className="m-choice-list" data-context="overlay">
           {currentCategories.length === 0 && (
-            <span className={styles.emptyText}>Нет категорий данного типа</span>
+            <span className="a-text-l a-clr-text-disabled">Нет категорий данного типа</span>
           )}
           {currentCategories.map((cat) => (
             <div
@@ -184,37 +179,26 @@ export function Sidebar({ type, setType }) {
         ></textarea>
 
         {type === "expense" && (
-          <Dropdown
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-            options={[
-              { value: "", label: "Без проекта" },
-              ...dbProjects.map((p) => ({ value: p.id, label: p.name })),
-            ]}
-            size="m"
-            context="overlay"
-          />
-        )}
-
-        {type === "expense" && (
-          <div className="m-choice-list">
+          <div className="m-choice-list" data-context="overlay">
+            <div
+              className="m-choice-label"
+              data-active={selectedBankId === null}
+              onClick={() => setSelectedBankId(null)}
+            >
+              <div className="m-radio-control">
+                {selectedBankId === null && <div className="m-radio-inner"></div>}
+              </div>
+              <span>Без счета</span>
+            </div>
             {dbBanks.map((bank) => (
               <div
                 key={bank.id}
                 className="m-choice-label"
-                data-active={selectedBankIds.includes(bank.id)}
-                onClick={() => {
-                  setSelectedBankIds((prev) =>
-                    prev.includes(bank.id)
-                      ? prev.filter((id) => id !== bank.id)
-                      : [...prev, bank.id],
-                  );
-                }}
+                data-active={selectedBankId === bank.id}
+                onClick={() => setSelectedBankId(bank.id)}
               >
-                <div className="m-checkbox-control">
-                  {selectedBankIds.includes(bank.id) && (
-                    <i className="ri-check-line m-checkbox-icon"></i>
-                  )}
+                <div className="m-radio-control">
+                  {selectedBankId === bank.id && <div className="m-radio-inner"></div>}
                 </div>
                 <span>{bank.name}</span>
               </div>
@@ -223,19 +207,28 @@ export function Sidebar({ type, setType }) {
         )}
       </form>
 
-      <div className={styles.submitContainer}>
-        {validationError && <span className={styles.errorMessage}>{validationError}</span>}
-        <div className={styles.submitButtonWrapper}>
+      <div className="o-sidebar-submit-container">
+        {validationError && (
+          <span className="a-text-s a-clr-text-semantic-error a-text-center a-flex a-justify-center a-mb-8">
+            {validationError}
+          </span>
+        )}
+        {apiError && (
+          <span className="a-text-s a-clr-text-semantic-error a-text-center a-flex a-justify-center a-mb-8">
+            {apiError}
+          </span>
+        )}
+        <div className="o-sidebar-submit-btn-wrapper">
           <button
             type="submit"
             onClick={handleSubmit}
-            className="m-button"
+            className="m-button a-w-full"
             data-variant="primary"
             data-size="m"
             data-context="overlay"
-            style={{ width: "100%" }}
+            disabled={addOperationMutation.isPending}
           >
-            Добавить
+            {addOperationMutation.isPending ? "Добавление..." : "Добавить"}
           </button>
         </div>
       </div>

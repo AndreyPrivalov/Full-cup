@@ -5,5 +5,6 @@ export function useDashboard(controlPeriod) {
   return useQuery({
     queryKey: ["dashboard", controlPeriod],
     queryFn: () => api.getDashboard(controlPeriod),
+    placeholderData: (previousData) => previousData,
   });
 }

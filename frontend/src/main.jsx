@@ -7,7 +7,11 @@ import App from "./App.jsx";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes fresh data cache
+      gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
       refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      retry: 1,
     },
   },
 });

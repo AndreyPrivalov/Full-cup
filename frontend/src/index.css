@@ -3,6 +3,14 @@
 @import "./molecules.css";
 @import "./organisms.css";
 
+/* ==========================================
+   STATIC LAYOUT (No fluid scaling, no adaptive)
+   Base 1rem = 16px
+   ========================================== */
+html {
+  font-size: 16px;
+}
+
 /* Global Reset & Strict Design Rules */
 *,
 *::before,
@@ -10,8 +18,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  /* Enforce No Visual Dividers (Lines/Shadows) on root layout level.
-     Shadows and borders are allowed explicitly via molecules/organisms */
+  /* Enforce No Visual Dividers (Lines/Shadows). Shadows are completely prohibited. */
   border: none;
   box-shadow: none;
   outline: none;
@@ -23,7 +30,6 @@ body {
   color: var(--clr-text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
 }
 
 button {

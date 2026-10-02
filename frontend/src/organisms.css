@@ -1,6 +1,23 @@
 /* ==========================================
-   ORGANISMS
+   ORGANISMS (Desktop-only, Zero Breakpoints)
+   Baseline Reference: 1920px screen width
+   All blocks and columns sized in rem, scaling
+   proportionally with typography & viewport
    ========================================== */
+
+/* --- Header Organism --- */
+.o-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.o-header-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spc-24);
+}
 
 /* --- Categories List Organism --- */
 .o-categories-list-body-expense {
@@ -42,8 +59,8 @@
   justify-content: center;
   color: var(--clr-text-primary);
   cursor: help;
-  font-size: 1.25rem; /* 20px */
-  font-weight: normal; /* ensure remixicon is not bolded by inheritance */
+  font-size: 1.25rem;
+  font-weight: normal;
 }
 
 .o-category-row-tooltip {
@@ -56,7 +73,7 @@
   background-color: var(--clr-bg-accent);
   color: var(--clr-text-inverse);
   font-size: var(--font-size-m);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-bold);
   padding: var(--spc-4) var(--spc-12);
   border-radius: var(--radius-s);
   pointer-events: none;
@@ -69,14 +86,14 @@
 }
 
 .o-category-row-value {
-  width: 96px;
+  width: 6rem;
   text-align: right;
   color: var(--clr-text-primary);
   font-size: var(--font-size-m);
 }
 
 .o-category-row-diff {
-  width: 96px;
+  width: 6rem;
   text-align: right;
   font-size: var(--font-size-m);
 }
@@ -96,18 +113,10 @@
   margin-top: var(--spc-8);
 }
 
-.o-category-total-symbol {
-  width: 2rem;
-  display: flex;
-  justify-content: center;
-  color: var(--clr-text-primary);
-  font-size: var(--font-size-m);
-}
-
 /* --- Investment Block Organism --- */
 .o-investment-block {
   flex: 1;
-  background-color: var(--clr-bg-page);
+  background-color: var(--clr-bg-surface);
   padding: var(--spc-24);
   border-radius: var(--radius-l);
   display: flex;
@@ -121,21 +130,18 @@
 /* --- Charts --- */
 .o-chart-curve {
   width: 100%;
-  height: 300px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spc-16);
-}
-
-.o-chart-stacked-diff {
-  width: 100%;
-  height: 300px;
+  height: 18.75rem;
   display: flex;
   flex-direction: column;
   gap: var(--spc-16);
 }
 
 /* --- Data Table Organism --- */
+.o-data-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .o-data-table {
   width: 100%;
   border-collapse: collapse;
@@ -145,7 +151,7 @@
 
 .o-data-table th {
   padding: 0 var(--spc-12) var(--spc-8) var(--spc-12);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-regular);
   font-size: var(--font-size-s);
   color: var(--clr-text-secondary);
   white-space: nowrap;
@@ -154,6 +160,206 @@
 .o-data-table td {
   padding: var(--spc-4) var(--spc-12);
   font-size: var(--font-size-m);
-  color: var(--clr-text-secondary);
+  font-weight: var(--font-weight-regular);
+  color: var(--clr-text-primary);
   vertical-align: middle;
+}
+
+.o-data-table tbody tr {
+  transition: background-color 0.2s;
+}
+
+/* Table Column Width Modifiers (All in rem to scale with text) */
+.o-data-table th.o-data-table-col-amount,
+.o-data-table td.o-data-table-col-amount {
+  width: 6.25rem;
+  padding-left: 0;
+  text-align: right;
+}
+
+.o-data-table-col-category {
+  width: 16.25rem;
+}
+
+.o-data-table-col-category-narrow {
+  width: 11.25rem;
+}
+
+.o-data-table-col-date {
+  width: 10rem;
+}
+
+.o-data-table-col-bank {
+  width: 8.75rem;
+}
+
+.o-data-table th.o-data-table-col-actions,
+.o-data-table td.o-data-table-col-actions {
+  width: 3rem;
+  padding-right: 0;
+}
+
+/* --- Page Layout Organism --- */
+.o-page-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  min-height: 100vh;
+  width: 100%;
+  min-width: 64rem; /* 1024px desktop floor */
+}
+
+.o-page-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--spc-24) var(--spc-40) var(--spc-40);
+  min-width: 0;
+}
+
+.o-page-container {
+  width: 100%;
+  max-width: 67rem; /* 1072px at 16px base, scales proportionally in rem */
+  display: flex;
+  flex-direction: column;
+}
+
+.o-page-header-wrapper {
+  width: 100%;
+  margin-bottom: var(--spc-32);
+}
+
+.o-page-sidebar-area {
+  width: 20rem;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Page Grid System */
+.o-page-grid {
+  display: grid;
+  width: 100%;
+  gap: var(--spc-32);
+}
+
+.o-page-grid-1 {
+  grid-template-columns: 1fr;
+}
+
+.o-page-grid-2 {
+  grid-template-columns: minmax(0, 44.5rem) 17.5rem;
+  gap: var(--spc-80);
+  justify-content: start;
+}
+
+.o-page-col-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spc-40);
+  min-width: 0;
+}
+
+.o-page-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spc-24);
+  min-width: 0;
+}
+
+/* --- Kaif Balance View Grid --- */
+.o-kaif-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spc-48);
+}
+
+/* --- Sidebar Organism --- */
+.o-sidebar {
+  width: 20rem;
+  background-color: var(--clr-bg-surface);
+  border-left: 1px solid var(--clr-border-secondary);
+  padding: var(--spc-24);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.o-sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spc-8);
+  margin-bottom: var(--spc-24);
+}
+
+.o-sidebar-datepicker {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  cursor: pointer;
+}
+
+.o-sidebar-datepicker-display {
+  font-size: var(--font-size-s);
+  color: var(--clr-text-primary);
+  transition: opacity 0.2s;
+  border-bottom: 1px dashed var(--clr-text-primary);
+  line-height: 1;
+  padding-bottom: 1px;
+}
+
+.o-sidebar-datepicker:hover .o-sidebar-datepicker-display {
+  opacity: 0.8;
+}
+
+.o-sidebar-datepicker-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.o-sidebar-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spc-16);
+  flex: 1;
+}
+
+.o-sidebar-input-wrapper {
+  position: relative;
+}
+
+.o-sidebar-currency {
+  position: absolute;
+  right: var(--spc-16);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--clr-text-disabled);
+  font-size: var(--font-size-l);
+  pointer-events: none;
+}
+
+.o-sidebar-submit-container {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding-top: var(--spc-32);
+  padding-bottom: var(--spc-24);
+  margin-top: auto;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--clr-bg-surface) 60%, transparent);
+  z-index: 10;
+}
+
+.o-sidebar-submit-btn-wrapper {
+  pointer-events: auto;
+  width: 100%;
 }

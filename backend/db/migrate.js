@@ -8,83 +8,50 @@ const DB_PATH = path.join(__dirname, "fullcup.db");
 export function runMigrations() {
   console.log("Checking database schema updates...");
   const db = new Database(DB_PATH);
-  db.pragma("foreign_keys = ON");
+  db.pragma("foreign_keys = OFF");
 
-  // Create monthly_budgets table
+  // Drop obsolete project tables and indexes if they exist
   db.exec(`
-    CREATE TABLE IF NOT EXISTS monthly_budgets (
-      month TEXT PRIMARY KEY,
-      andrey_limit REAL NOT NULL DEFAULT 15000,
-      diana_limit REAL NOT NULL DEFAULT 15000,
-      shared_limit REAL NOT NULL DEFAULT 30000
-    );
+    DROP TABLE IF EXISTS project_allocations;
+    DROP TABLE IF EXISTS monthly_budgets;
+    DROP TABLE IF EXISTS projects;
+    DROP INDEX IF EXISTS idx_transactions_project;
+    DROP INDEX IF EXISTS idx_project_allocations_month;
   `);
 
-  // Create project_allocations table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS project_allocations (
-      project_id INTEGER NOT NULL,
-      month TEXT NOT NULL,
-      \`limit\` REAL NOT NULL DEFAULT 0,
-      PRIMARY KEY (project_id, month),
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-    );
-  `);
+  // Check columns in transactions table and rebuild without project_id if exists
+  const transactionColumns = db.prepare("PRAGMA table_info(transactions)").all();
+  const txColNames = new Set(transactionColumns.map((col) => col.name));
 
-  // Check columns in projects table and add missing ones
-  const columnsInfo = db.prepare("PRAGMA table_info(projects)").all();
-  const existingColumns = new Set(columnsInfo.map((col) => col.name));
-
-  const columnsToAdd = [
-    { name: "size", type: "TEXT" },
-    { name: "liquidity", type: "INTEGER" },
-    { name: "comfort", type: "INTEGER" },
-    { name: "aesthetics", type: "INTEGER" },
-    { name: "social_capital", type: "INTEGER" },
-    { name: "functionality", type: "INTEGER" },
-    { name: "urgency", type: "INTEGER" },
-    { name: "status", type: "TEXT DEFAULT 'backlog'" },
-    { name: "start_date", type: "TEXT" },
-    { name: "type", type: "TEXT DEFAULT 'personal'" },
-    { name: "owner", type: "TEXT" },
-    { name: "andrey_share", type: "INTEGER DEFAULT 0" },
-    { name: "diana_share", type: "INTEGER DEFAULT 0" },
-  ];
-
-  for (const col of columnsToAdd) {
-    if (!existingColumns.has(col.name)) {
-      console.log(`Adding missing column projects.${col.name}...`);
-      db.exec(`ALTER TABLE projects ADD COLUMN ${col.name} ${col.type};`);
-    }
+  if (txColNames.has("project_id")) {
+    console.log("Rebuilding transactions table without project_id...");
+    db.exec(`
+      CREATE TABLE transactions_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        amount REAL NOT NULL,
+        type TEXT NOT NULL,
+        category_id INTEGER REFERENCES categories(id),
+        bank_id INTEGER REFERENCES banks(id),
+        date TEXT NOT NULL,
+        comment TEXT
+      );
+      INSERT INTO transactions_new (id, amount, type, category_id, bank_id, date, comment)
+      SELECT id, amount, type, category_id, bank_id, date, comment FROM transactions;
+      DROP TABLE transactions;
+      ALTER TABLE transactions_new RENAME TO transactions;
+    `);
   }
 
-  const columnsToDrop = [
-    "description",
-    "estimated_cost",
-    "what_will_change",
-    "what_if_not_done",
-    "reward_description",
-  ];
-
-  for (const col of columnsToDrop) {
-    if (existingColumns.has(col)) {
-      console.log(`Dropping column projects.${col}...`);
-      try {
-        db.exec(`ALTER TABLE projects DROP COLUMN ${col};`);
-      } catch (e) {
-        console.error(`Failed to drop column ${col}:`, e.message);
-      }
-    }
-  }
-
-  // Optimization indexes
+  // Ensure optimization indexes
   db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_transactions_project ON transactions(project_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_bank ON transactions(bank_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
-    CREATE INDEX IF NOT EXISTS idx_project_allocations_month ON project_allocations(month);
+    CREATE INDEX IF NOT EXISTS idx_transactions_cat_type_date ON transactions(category_id, type, date);
+    CREATE INDEX IF NOT EXISTS idx_transactions_bank_type_date ON transactions(bank_id, type, date);
+    CREATE INDEX IF NOT EXISTS idx_transactions_type_date ON transactions(type, date);
   `);
 
+  db.pragma("foreign_keys = ON");
   console.log("Database migrations completed successfully.");
   db.close();
 }

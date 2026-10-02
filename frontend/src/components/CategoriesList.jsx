@@ -1,13 +1,22 @@
 import { useState } from "react";
 import { useCategoryMetrics } from "../hooks/useCategoryMetrics";
+import { formatNumber, getPrevMonthToDateString } from "../utils";
 import { CategoryBar } from "./CategoryBar";
 import { CategoryIcon } from "./CategoryIcon";
-import { PeriodDropdown } from "./PeriodDropdown";
+import { Dropdown } from "./Dropdown";
 import { SectionBlock } from "./SectionBlock";
 
 export function CategoriesList({ type, title, data = [], controlPeriod, setControlPeriod }) {
   const isExpense = type === "expense";
   const [activeTab, setActiveTab] = useState("current"); // 'current' or 'control'
+
+  const periodOptions = [
+    { value: "прошлым месяцем", label: "прошлым месяцем" },
+    { value: getPrevMonthToDateString(), label: getPrevMonthToDateString() },
+    { value: "средним за 3 мес", label: "средним за 3 мес" },
+    { value: "средним за 6 мес", label: "средним за 6 мес" },
+    { value: "средним за год", label: "средним за год" },
+  ];
 
   const {
     processedData,
@@ -43,7 +52,13 @@ export function CategoriesList({ type, title, data = [], controlPeriod, setContr
         </>
       }
       controls={
-        <PeriodDropdown controlPeriod={controlPeriod} setControlPeriod={setControlPeriod} />
+        <Dropdown
+          label="Сравнивать с"
+          value={controlPeriod}
+          onChange={(e) => setControlPeriod?.(e.target.value)}
+          options={periodOptions}
+          size="s"
+        />
       }
       bodyClassName={isExpense ? "o-categories-list-body-expense" : "o-categories-list-body-income"}
     >
@@ -85,14 +100,12 @@ export function CategoriesList({ type, title, data = [], controlPeriod, setContr
             </span>
           </CategoryIcon>
           <div className="o-category-row-value">
-            {activeTab === "current"
-              ? sum.toLocaleString("ru-RU")
-              : prevSum.toLocaleString("ru-RU")}
+            {activeTab === "current" ? formatNumber(sum) : formatNumber(prevSum)}
           </div>
           <div
-            className={`o-category-row-diff ${totalWarning ? "a-clr-text-semantic-expense" : "a-clr-text-semantic-income"}`}
+            className={`o-category-row-diff ${totalWarning ? "a-clr-text-semantic-error" : "a-clr-text-semantic-success"}`}
           >
-            {sumDiffValue > 0 ? sumDiffValue.toLocaleString("ru-RU") : "0"}
+            {sumDiffValue > 0 ? formatNumber(sumDiffValue) : "0"}
           </div>
           {isExpense && (
             <div className="o-category-row-bar-container">
@@ -119,7 +132,7 @@ export function CategoriesList({ type, title, data = [], controlPeriod, setContr
 
       {!isExpense && (
         <div className="o-investment-block">
-          <span className="a-text-l a-font-medium a-clr-text-primary">Инвестиции</span>
+          <span className="a-text-l a-font-bold a-clr-text-primary">Инвестиции</span>
           <span
             className="a-text-m a-clr-text-secondary"
             style={{ maxWidth: "250px", lineHeight: 1.625 }}

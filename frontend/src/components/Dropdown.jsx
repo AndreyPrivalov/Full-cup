@@ -5,14 +5,15 @@ export function Dropdown({
   size = "m",
   context = "normal",
   className = "",
+  label = null,
 }) {
-  const rightSpc = size === "s" ? "var(--spc-8)" : size === "l" ? "var(--spc-16)" : "var(--spc-12)";
-  const iconSize = size === "s" ? "var(--font-size-m)" : "var(--font-size-h4)";
+  const rightSpc = size === "s" ? "var(--spc-8)" : "var(--spc-12)";
+  const iconSize = "var(--font-size-s)";
 
-  return (
+  const selectNode = (
     <div
       style={{ position: "relative", width: size === "s" ? "fit-content" : "100%" }}
-      className={className}
+      className={label ? "" : className}
     >
       <select
         value={value || ""}
@@ -43,4 +44,15 @@ export function Dropdown({
       )}
     </div>
   );
+
+  if (label) {
+    return (
+      <div className={`a-flex a-items-center a-gap-4 ${className}`}>
+        <span className="a-clr-text-primary a-whitespace-nowrap">{label}</span>
+        <div>{selectNode}</div>
+      </div>
+    );
+  }
+
+  return selectNode;
 }

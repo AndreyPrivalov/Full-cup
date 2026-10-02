@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useCallback, useMemo, useState } from "react";
 import { useAddSaving } from "../hooks/useAddSaving";
 import { useSavings } from "../hooks/useSavings";
 import { useUpdateSaving } from "../hooks/useUpdateSaving";
+import { formatDateMonthYear, formatNumber } from "../utils";
+import { ChartCurve } from "./ChartCurve";
 import { EditableCell } from "./EditableCell";
 import { PageColumn, PageGrid } from "./PageLayout/index.jsx";
-import styles from "./SavingsView.module.css";
 
 export default function SavingsView() {
   const { data: savingsData = [], isLoading, isError } = useSavings();
@@ -13,26 +13,18 @@ export default function SavingsView() {
   const updateSavingMutation = useUpdateSaving();
   const [error, setError] = useState("");
 
-  if (isLoading)
-    return (
-      <div className="a-text-m a-text-center a-clr-text-secondary">Загрузка накоплений...</div>
-    );
-  if (isError)
-    return (
-      <div className="a-text-m a-text-center a-clr-text-secondary">
-        Ошибка при загрузке накоплений
-      </div>
-    );
+  const chartData = useMemo(
+    () =>
+      savingsData.map((item) => ({
+        ...item,
+        formattedDate: formatDateMonthYear(item.date),
+      })),
+    [savingsData],
+  );
 
-  const chartData = savingsData.map((item) => ({
-    ...item,
-    formattedDate: new Date(item.date).toLocaleDateString("ru-RU", {
-      month: "short",
-      year: "2-digit",
-    }),
-  }));
+  const reversedRows = useMemo(() => [...chartData].reverse(), [chartData]);
 
-  const handleAddPeriod = () => {
+  const handleAddPeriod = useCallback(() => {
     setError("");
     addSavingMutation.mutate(
       {},
@@ -42,20 +34,34 @@ export default function SavingsView() {
         },
       },
     );
-  };
+  }, [addSavingMutation]);
 
-  const handleUpdate = (id, field, value) => {
-    setError("");
-    updateSavingMutation.mutate(
-      {
-        id,
-        data: { [field]: value },
-      },
-      {
-        onError: (err) => setError(err.message || "Ошибка при сохранении"),
-      },
+  const handleUpdate = useCallback(
+    (id, field, value) => {
+      setError("");
+      updateSavingMutation.mutate(
+        {
+          id,
+          data: { [field]: value },
+        },
+        {
+          onError: (err) => setError(err.message || "Ошибка при сохранении"),
+        },
+      );
+    },
+    [updateSavingMutation],
+  );
+
+  if (isLoading && !savingsData.length)
+    return (
+      <div className="a-text-m a-text-center a-clr-text-secondary">Загрузка накоплений...</div>
     );
-  };
+  if (isError && !savingsData.length)
+    return (
+      <div className="a-text-m a-text-center a-clr-text-secondary">
+        Ошибка при загрузке накоплений
+      </div>
+    );
 
   return (
     <PageGrid columns={1}>
@@ -65,36 +71,7 @@ export default function SavingsView() {
 
         {chartData.length > 0 ? (
           <div className="a-flex a-flex-col a-gap-16">
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis stroke="var(--clr-text-disabled)" fontSize={12} tickLine={false} />
-                <YAxis stroke="var(--clr-text-disabled)" fontSize={12} tickLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "var(--clr-bg-surface)",
-                    border: "1px solid var(--clr-border-primary)",
-                    borderRadius: "var(--radius-m)",
-                    fontSize: "14px",
-                  }}
-                  labelFormatter={(label, items) => {
-                    const item = items[0]?.payload;
-                    return item
-                      ? new Date(item.date).toLocaleDateString("ru-RU", {
-                          month: "long",
-                          year: "numeric",
-                        })
-                      : label;
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="total"
-                  stroke="var(--clr-text-primary)"
-                  fill="var(--clr-base-gray-100)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <ChartCurve data={chartData} xAxisKey="formattedDate" dataKey="total" />
           </div>
         ) : (
           <div className="a-text-m a-text-center a-clr-text-secondary">
@@ -104,82 +81,79 @@ export default function SavingsView() {
 
         <div className="a-flex a-flex-col a-gap-20">
           <div className="a-flex a-items-center a-justify-between">
-            <h2 className="a-text-l a-font-medium">Детализация по месяцам</h2>
+            <h2 className="a-text-h2">Детализация по месяцам</h2>
           </div>
 
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
+          <div className="o-data-table-wrapper">
+            <table className="o-data-table">
               <thead>
                 <tr>
-                  <th className={styles.th}>Дата</th>
-                  <th className={styles.th}>Наличные</th>
-                  <th className={styles.th}>Электр.</th>
-                  <th className={styles.th}>Всего</th>
-                  <th className={styles.th}>Дин.</th>
-                  <th className={styles.th}>Проекты</th>
-                  <th className={styles.th}>С проектами</th>
-                  <th className={styles.th}>Долги</th>
+                  <th className="a-text-left">Дата</th>
+                  <th className="a-text-right">Наличные</th>
+                  <th className="a-text-right">Электр.</th>
+                  <th className="a-text-right">Всего</th>
+                  <th className="a-text-right">Дин.</th>
+                  <th className="a-text-right">Проекты</th>
+                  <th className="a-text-right">С проектами</th>
+                  <th className="a-text-right">Долги</th>
                 </tr>
               </thead>
               <tbody>
-                {[...chartData].reverse().map((item) => {
-                  const diffColor =
+                {reversedRows.map((item) => {
+                  const diffColorClass =
                     item.dynamics > 0
-                      ? "var(--clr-text-semantic-income)"
+                      ? "a-clr-text-semantic-success"
                       : item.dynamics < 0
-                        ? "var(--clr-text-semantic-expense)"
-                        : "inherit";
-                  const diffProjColor =
+                        ? "a-clr-text-semantic-error"
+                        : "a-clr-text-secondary";
+                  const diffProjColorClass =
                     item.dynamics_with_global_projects > 0
-                      ? "var(--clr-text-semantic-income)"
+                      ? "a-clr-text-semantic-success"
                       : item.dynamics_with_global_projects < 0
-                        ? "var(--clr-text-semantic-expense)"
-                        : "inherit";
+                        ? "a-clr-text-semantic-error"
+                        : "a-clr-text-secondary";
 
                   const formatDynamics = (val) => {
                     if (!val) return "0";
-                    return Math.abs(val).toLocaleString("ru-RU");
+                    return formatNumber(Math.abs(val));
                   };
 
                   return (
-                    <tr key={item.id} className={styles.tr}>
-                      <td className={styles.td}>
-                        {new Date(item.date)
-                          .toLocaleDateString("ru-RU", {
-                            month: "short",
-                            year: "numeric",
-                          })
-                          .replace(" г.", "")}
-                      </td>
-                      <td className={styles.td}>
+                    <tr key={item.id}>
+                      <td className="a-text-left">{formatDateMonthYear(item.date)}</td>
+                      <td className="a-text-right">
                         <EditableCell
                           value={item.cash}
+                          align="right"
                           onSave={(val) => handleUpdate(item.id, "cash", val)}
                         />
                       </td>
-                      <td className={styles.td}>
+                      <td className="a-text-right">
                         <EditableCell
                           value={item.electronic}
+                          align="right"
                           onSave={(val) => handleUpdate(item.id, "electronic", val)}
                         />
                       </td>
-                      <td className={styles.td}>{item.total.toLocaleString("ru-RU")}</td>
-                      <td className={styles.td} style={{ color: diffColor }}>
+                      <td className="a-text-right">{formatNumber(item.total)}</td>
+                      <td className={`a-text-right ${diffColorClass}`}>
                         {formatDynamics(item.dynamics)}
                       </td>
-                      <td className={styles.td}>
+                      <td className="a-text-right">
                         <EditableCell
                           value={item.global_projects}
+                          align="right"
                           onSave={(val) => handleUpdate(item.id, "global_projects", val)}
                         />
                       </td>
-                      <td className={styles.td} style={{ color: diffProjColor }}>
+                      <td className={`a-text-right ${diffProjColorClass}`}>
                         {formatDynamics(item.dynamics_with_global_projects)}
                       </td>
-                      <td className={styles.td}>
+                      <td className="a-text-right">
                         <EditableCell
                           value={item.debts}
                           placeholder="Нет"
+                          align="right"
                           onSave={(val) => handleUpdate(item.id, "debts", val)}
                         />
                       </td>

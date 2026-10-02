@@ -1,6 +1,8 @@
+import { memo } from "react";
+import { formatNumber } from "../utils";
 import { CategoryIcon } from "./CategoryIcon";
 
-export function CategoryBar({
+export const CategoryBar = memo(function CategoryBar({
   name,
   icon,
   currentValue,
@@ -20,12 +22,12 @@ export function CategoryBar({
     <div className="o-category-row">
       <CategoryIcon icon={icon} name={name} />
       <div className="o-category-row-value">
-        {displayValue > 0 ? displayValue.toLocaleString("ru-RU") : "0"}
+        {displayValue > 0 ? formatNumber(displayValue) : "0"}
       </div>
       <div
-        className={`o-category-row-diff ${warning ? "a-clr-text-semantic-expense" : "a-clr-text-semantic-income"}`}
+        className={`o-category-row-diff ${warning ? "a-clr-text-semantic-error" : "a-clr-text-semantic-success"}`}
       >
-        {diffValue > 0 ? diffValue.toLocaleString("ru-RU") : "0"}
+        {diffValue > 0 ? formatNumber(diffValue) : "0"}
       </div>
       {isExpense && (
         <div className="o-category-row-bar-container">
@@ -49,4 +51,4 @@ export function CategoryBar({
       )}
     </div>
   );
-}
+});

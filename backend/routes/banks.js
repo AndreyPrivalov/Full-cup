@@ -95,18 +95,19 @@ router.delete(
   "/:id",
   apiHandler((req, res) => {
     const { id } = req.params;
+    const bankId = Number(id);
 
-    db.update(transactions)
-      .set({ bank_id: null })
-      .where(eq(transactions.bank_id, Number(id)))
-      .run();
+    let bankFound = false;
 
-    const info = db
-      .delete(banks)
-      .where(eq(banks.id, Number(id)))
-      .run();
+    db.transaction((tx) => {
+      tx.update(transactions).set({ bank_id: null }).where(eq(transactions.bank_id, bankId)).run();
 
-    if (info.changes === 0) {
+      const info = tx.delete(banks).where(eq(banks.id, bankId)).run();
+
+      bankFound = info.changes > 0;
+    });
+
+    if (!bankFound) {
       return res.status(404).json({ error: "Банк не найден" });
     }
     res.status(204).send();
