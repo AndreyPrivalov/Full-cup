@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { api } from "../api";
 import { formatNumber } from "../utils";
-import { PageColumn, PageGrid } from "./PageLayout/index.jsx";
+import { PageColumn, PageContainer } from "./PageLayout/index.jsx";
 
 export function BackupView() {
   const queryClient = useQueryClient();
@@ -137,7 +137,7 @@ export function BackupView() {
 
   return (
     <div className="a-flex a-flex-col a-gap-24 a-w-full">
-      <PageGrid columns={2}>
+      <PageContainer variant="two-column">
         {/* Left Column: Export */}
         <PageColumn position="left">
           <div className="m-card a-flex a-flex-col a-gap-20" data-context="overlay" data-size="m">
@@ -339,7 +339,7 @@ export function BackupView() {
             )}
           </div>
         </PageColumn>
-      </PageGrid>
+      </PageContainer>
     </div>
   );
 }

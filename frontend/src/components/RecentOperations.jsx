@@ -2,7 +2,7 @@ import { formatDateShort } from "../utils";
 import { OperationRow } from "./OperationRow";
 import { SectionBlock } from "./SectionBlock";
 
-export function RecentOperations({ operations = [] }) {
+export function RecentOperations({ operations = [], newlyAddedIds = null }) {
   return (
     <SectionBlock
       title="Последние записи"
@@ -18,13 +18,18 @@ export function RecentOperations({ operations = [] }) {
           Все операции
         </span>
       }
-      bodyClassName="a-flex a-flex-col a-gap-2"
+      bodyClassName="m-operation-list"
     >
       {operations.length === 0 && (
         <span className="a-text-m a-clr-text-secondary">Нет операций</span>
       )}
       {operations.map((op, i) => (
-        <OperationRow key={op.id || i} operation={op} showBadges={true} />
+        <OperationRow
+          key={op.id || i}
+          operation={op}
+          showBadges={true}
+          isNew={Boolean(newlyAddedIds?.has(op.id))}
+        />
       ))}
     </SectionBlock>
   );

@@ -6,7 +6,6 @@ import { KaifBalanceView } from "./components/KaifBalanceView";
 import OperationsView from "./components/OperationsView";
 import { PageLayout } from "./components/PageLayout/index.jsx";
 import SavingsView from "./components/SavingsView";
-import { Sidebar } from "./components/Sidebar";
 import { UiLibraryView } from "./components/UiLibraryView";
 import { useSavings } from "./hooks/useSavings";
 import { formatNumber } from "./utils";
@@ -14,7 +13,6 @@ import { formatNumber } from "./utils";
 export default function App() {
   const [activeTab, setActiveTab] = useState("month");
   const [visitedTabs, setVisitedTabs] = useState(() => new Set(["month"]));
-  const [operationType, setOperationType] = useState("expense");
 
   useEffect(() => {
     setVisitedTabs((prev) => new Set(prev).add(activeTab));
@@ -39,8 +37,12 @@ export default function App() {
 
       if (isInput) return;
 
-      if (e.key === "1") {
+      if (e.key === "0" || e.key === "1") {
         setActiveTab("month");
+        setTimeout(() => {
+          const smartInput = document.querySelector(".o-smart-entry-input");
+          smartInput?.focus();
+        }, 50);
       } else if (e.key === "2") {
         setActiveTab("kaif");
       } else if (e.key === "3") {
@@ -52,11 +54,12 @@ export default function App() {
       } else if (e.key === "6" || e.key === "l" || e.key === "L") {
         setActiveTab("library");
       } else if (e.key === "n" || e.key === "N" || (e.altKey && e.key.toLowerCase() === "n")) {
-        const amountInput = document.querySelector('input[type="number"][data-context="overlay"]');
-        if (amountInput) {
-          e.preventDefault();
-          amountInput.focus();
-        }
+        e.preventDefault();
+        setActiveTab("month");
+        setTimeout(() => {
+          const smartInput = document.querySelector(".o-smart-entry-input");
+          smartInput?.focus();
+        }, 50);
       }
     };
 
@@ -153,17 +156,12 @@ export default function App() {
     </header>
   );
 
-  const sidebar =
-    activeTab !== "savings" && activeTab !== "backup" && activeTab !== "library" ? (
-      <Sidebar type={operationType} setType={setOperationType} />
-    ) : null;
-
   return (
     <ErrorBoundary>
-      <PageLayout header={_header} sidebar={sidebar} fullWidth={activeTab === "library"}>
+      <PageLayout header={_header}>
         {visitedTabs.has("month") && (
           <div style={{ display: activeTab === "month" ? "block" : "none", width: "100%" }}>
-            <DashboardView operationType={operationType} />
+            <DashboardView />
           </div>
         )}
 

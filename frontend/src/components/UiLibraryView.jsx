@@ -6,6 +6,8 @@ import { DeleteButton } from "./DeleteButton";
 import { Dropdown } from "./Dropdown";
 import { EditableCell } from "./EditableCell";
 import { OperationRow } from "./OperationRow";
+import { OperationsFilters } from "./OperationsFilters";
+import { PageColumn, PageContainer } from "./PageLayout/index.jsx";
 import { SectionBlock } from "./SectionBlock";
 
 export function UiLibraryView() {
@@ -22,6 +24,12 @@ export function UiLibraryView() {
   const [editableDate, setEditableDate] = useState("2026-10-01");
   const [editableSel, setEditableSel] = useState("tinkoff");
 
+  // Filter state for demo
+  const [filterPreset, setFilterPreset] = useState("all");
+  const [filterStart, setFilterStart] = useState("2026-01-01");
+  const [filterEnd, setFilterEnd] = useState("2026-10-04");
+  const [filterCategories, setFilterCategories] = useState([]);
+
   // Ensure root font size is reset to default static
   useEffect(() => {
     document.documentElement.style.fontSize = "";
@@ -31,12 +39,12 @@ export function UiLibraryView() {
   }, []);
 
   const sampleChartCurve = [
-    { name: "Янв", value: 42000 },
-    { name: "Фев", value: 38000 },
-    { name: "Мар", value: 55000 },
-    { name: "Апр", value: 49000 },
-    { name: "Май", value: 62000 },
-    { name: "Июн", value: 71000 },
+    { name: "янв", subLabel: "26", value: 42000, isJanuary: true },
+    { name: "фев", value: 38000 },
+    { name: "мар", value: 55000 },
+    { name: "апр", value: 49000 },
+    { name: "май", value: 62000 },
+    { name: "июн", subLabel: "26", value: 71000 },
   ];
 
   const sampleOperations = [
@@ -638,35 +646,81 @@ export function UiLibraryView() {
             </div>
 
             {/* --- Navigation & Tabs --- */}
-            <div className="a-flex a-flex-col a-gap-12">
+            <div className="a-flex a-flex-col a-gap-16">
               <span className="a-text-m a-clr-text-primary a-font-bold">Вкладки и навигация</span>
 
-              <div className="a-flex a-gap-24 a-items-baseline">
-                {["tab1", "tab2", "tab3"].map((tab, idx) => (
-                  <span
-                    key={tab}
-                    className="m-tab"
-                    data-size="m"
-                    data-active={activeTabDemo === tab}
-                    onClick={() => setActiveTabDemo(tab)}
-                  >
-                    Вкладка {idx + 1}
-                  </span>
-                ))}
+              {/* Tabs Size L */}
+              <div className="a-flex a-flex-col a-gap-4">
+                <span className="a-text-s a-clr-text-secondary">Табы (размер L, текст L)</span>
+                <div className="a-flex a-gap-16 a-items-baseline">
+                  {["tab1", "tab2", "tab3"].map((tab, idx) => (
+                    <span
+                      key={tab}
+                      className="m-tab"
+                      data-size="l"
+                      data-active={activeTabDemo === tab}
+                      onClick={() => setActiveTabDemo(tab)}
+                    >
+                      Вкладка {idx + 1}
+                    </span>
+                  ))}
+                </div>
               </div>
 
-              <div className="a-flex a-gap-24 a-items-baseline">
-                {["nav1", "nav2", "nav3"].map((nav, idx) => (
-                  <span
-                    key={nav}
-                    className="m-nav-item"
-                    data-size="sd"
-                    data-active={activeNavDemo === nav}
-                    onClick={() => setActiveNavDemo(nav)}
-                  >
-                    Элемент {idx + 1}
-                  </span>
-                ))}
+              {/* Tabs Size M */}
+              <div className="a-flex a-flex-col a-gap-4">
+                <span className="a-text-s a-clr-text-secondary">Табы (размер M, текст M)</span>
+                <div className="a-flex a-gap-16 a-items-baseline">
+                  {["tab1", "tab2", "tab3"].map((tab, idx) => (
+                    <span
+                      key={tab}
+                      className="m-tab"
+                      data-size="m"
+                      data-active={activeTabDemo === tab}
+                      onClick={() => setActiveTabDemo(tab)}
+                    >
+                      Вкладка {idx + 1}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tabs Size S */}
+              <div className="a-flex a-flex-col a-gap-4">
+                <span className="a-text-s a-clr-text-secondary">Табы (размер S, текст S)</span>
+                <div className="a-flex a-gap-12 a-items-baseline">
+                  {["tab1", "tab2", "tab3"].map((tab, idx) => (
+                    <span
+                      key={tab}
+                      className="m-tab"
+                      data-size="s"
+                      data-active={activeTabDemo === tab}
+                      onClick={() => setActiveTabDemo(tab)}
+                    >
+                      Вкладка {idx + 1}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Header Nav Item */}
+              <div className="a-flex a-flex-col a-gap-4">
+                <span className="a-text-s a-clr-text-secondary">
+                  Элементы навигации (m-nav-item)
+                </span>
+                <div className="a-flex a-gap-24 a-items-baseline">
+                  {["nav1", "nav2", "nav3"].map((nav, idx) => (
+                    <span
+                      key={nav}
+                      className="m-nav-item"
+                      data-size="sd"
+                      data-active={activeNavDemo === nav}
+                      onClick={() => setActiveNavDemo(nav)}
+                    >
+                      Элемент {idx + 1}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -811,6 +865,60 @@ export function UiLibraryView() {
               </div>
             </div>
 
+            {/* Operations Filters Organism */}
+            <div className="a-flex a-flex-col a-gap-8">
+              <span className="a-text-m a-clr-text-primary a-font-bold">
+                Фильтры операций (период и категории)
+              </span>
+              <div
+                style={{
+                  backgroundColor: "var(--clr-bg-surface)",
+                  padding: "var(--spc-16)",
+                  borderRadius: "var(--radius-m)",
+                }}
+              >
+                <OperationsFilters
+                  categories={sampleCategories}
+                  startDate={filterStart}
+                  endDate={filterEnd}
+                  onDateChange={(s, e) => {
+                    setFilterStart(s);
+                    setFilterEnd(e);
+                    setFilterPreset("custom");
+                  }}
+                  activePreset={filterPreset}
+                  onPresetChange={(p) => {
+                    setFilterPreset(p);
+                    if (p === "all") {
+                      setFilterStart("2026-01-01");
+                      setFilterEnd("2026-10-04");
+                    }
+                  }}
+                  selectedCategoryIds={filterCategories}
+                  onToggleCategory={(id) =>
+                    setFilterCategories((prev) =>
+                      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+                    )
+                  }
+                  onResetCategories={() => setFilterCategories([])}
+                  onResetAll={() => {
+                    setFilterPreset("all");
+                    setFilterStart("2026-01-01");
+                    setFilterEnd("2026-10-04");
+                    setFilterCategories([]);
+                  }}
+                  hasActiveFilters={Boolean(
+                    filterStart ||
+                      filterEnd ||
+                      filterPreset !== "all" ||
+                      filterCategories.length > 0,
+                  )}
+                  totalCount={42}
+                  totalAmount={145800}
+                />
+              </div>
+            </div>
+
             {/* Data Table Organism */}
             <div className="a-flex a-flex-col a-gap-8">
               <span className="a-text-m a-clr-text-primary a-font-bold">Таблица данных</span>
@@ -821,6 +929,7 @@ export function UiLibraryView() {
                       <th className="o-data-table-col-amount">Сумма</th>
                       <th className="o-data-table-col-category">Категория</th>
                       <th className="o-data-table-col-date">Дата</th>
+                      <th className="o-data-table-col-comment">Комментарий</th>
                       <th className="o-data-table-col-bank">Счет</th>
                       <th className="o-data-table-col-actions"></th>
                     </tr>
@@ -837,6 +946,7 @@ export function UiLibraryView() {
                         </div>
                       </td>
                       <td className="o-data-table-col-date">01 окт 2026</td>
+                      <td className="o-data-table-col-comment">Покупка в супермаркете</td>
                       <td className="o-data-table-col-bank">Тинькофф</td>
                       <td className="o-data-table-col-actions">
                         <DeleteButton size="s" />
@@ -853,6 +963,7 @@ export function UiLibraryView() {
                         </div>
                       </td>
                       <td className="o-data-table-col-date">28 сен 2026</td>
+                      <td className="o-data-table-col-comment">Аванс за сентябрь</td>
                       <td className="o-data-table-col-bank">Сбербанк</td>
                       <td className="o-data-table-col-actions">
                         <DeleteButton size="s" />
@@ -882,6 +993,62 @@ export function UiLibraryView() {
                   >
                     <ChartCurve data={sampleChartCurve} />
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* PageContainer Organism */}
+            <div className="a-flex a-flex-col a-gap-8">
+              <span className="a-text-m a-clr-text-primary a-font-bold">
+                Контейнер страниц (PageContainer)
+              </span>
+              <p className="a-text-s a-clr-text-secondary">
+                Полностью fluid-контейнер без ограничений по ширине (свободно растягивается и
+                сужается). Доступно 2 варианта: одноколоночный (single) и двухколоночный
+                (two-column: 1fr + 20rem).
+              </p>
+              <div className="a-flex a-flex-col a-gap-16">
+                <div>
+                  <span
+                    className="a-text-s a-clr-text-secondary a-mb-4"
+                    style={{ display: "block" }}
+                  >
+                    1. Одноколоночный (variant="single")
+                  </span>
+                  <PageContainer variant="single">
+                    <div
+                      className="a-p-16 a-rounded-m a-text-s a-clr-text-primary"
+                      style={{ backgroundColor: "var(--clr-bg-surface)" }}
+                    >
+                      Колонка на 100% ширины (1fr)
+                    </div>
+                  </PageContainer>
+                </div>
+                <div>
+                  <span
+                    className="a-text-s a-clr-text-secondary a-mb-4"
+                    style={{ display: "block" }}
+                  >
+                    2. Двухколоночный (variant="two-column")
+                  </span>
+                  <PageContainer variant="two-column">
+                    <PageColumn position="left">
+                      <div
+                        className="a-p-16 a-rounded-m a-text-s a-clr-text-primary"
+                        style={{ backgroundColor: "var(--clr-bg-surface)" }}
+                      >
+                        Основная резиновая колонка (minmax(0, 1fr))
+                      </div>
+                    </PageColumn>
+                    <PageColumn position="right">
+                      <div
+                        className="a-p-16 a-rounded-m a-text-s a-clr-text-primary"
+                        style={{ backgroundColor: "var(--clr-bg-surface)" }}
+                      >
+                        Правая колонка (20rem / 320px)
+                      </div>
+                    </PageColumn>
+                  </PageContainer>
                 </div>
               </div>
             </div>

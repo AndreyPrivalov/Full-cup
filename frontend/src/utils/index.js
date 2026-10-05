@@ -71,6 +71,18 @@ export function pluralizeDays(days) {
       : "дней";
 }
 
+export function pluralizeCategories(count) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) {
+    return `${count} категория`;
+  }
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) {
+    return `${count} категории`;
+  }
+  return `${count} категорий`;
+}
+
 export const formatCurrency = (amount) => {
   return currencyFormatter.format(amount);
 };
@@ -88,6 +100,59 @@ export const formatDateShort = (dateInput) => {
   } catch (_e) {
     return String(dateInput);
   }
+};
+
+const RU_MONTHS_SHORT = [
+  "янв",
+  "фев",
+  "мар",
+  "апр",
+  "май",
+  "июн",
+  "июл",
+  "авг",
+  "сен",
+  "окт",
+  "ноя",
+  "дек",
+];
+
+export const parseMonthYear = (dateInput) => {
+  if (!dateInput) return { month: "", year: "", isJanuary: false };
+  try {
+    if (typeof dateInput === "string" && dateInput.includes("-")) {
+      const parts = dateInput.split("-");
+      if (parts.length >= 2) {
+        const y = parts[0].slice(-2);
+        const monthIndex = Number.parseInt(parts[1], 10) - 1;
+        if (monthIndex >= 0 && monthIndex < 12) {
+          return {
+            month: RU_MONTHS_SHORT[monthIndex],
+            year: y,
+            isJanuary: monthIndex === 0,
+          };
+        }
+      }
+    }
+    const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+    if (Number.isNaN(d.getTime())) {
+      return { month: String(dateInput), year: "", isJanuary: false };
+    }
+    const monthIndex = d.getMonth();
+    return {
+      month: RU_MONTHS_SHORT[monthIndex] || "",
+      year: String(d.getFullYear()).slice(-2),
+      isJanuary: monthIndex === 0,
+    };
+  } catch (_e) {
+    return { month: String(dateInput), year: "", isJanuary: false };
+  }
+};
+
+export const formatCompactMonthYear = (dateInput) => {
+  const { month, year } = parseMonthYear(dateInput);
+  if (!month) return "";
+  return year ? `${month} ${year}` : month;
 };
 
 export const formatDateMonthYear = (dateInput) => {
@@ -114,3 +179,53 @@ export function getLocalMonthString(d = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   return `${year}-${month}`;
 }
+
+export function getCurrentMonthRange(d = new Date()) {
+  const date = d instanceof Date ? d : new Date(d);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const end = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end };
+}
+
+export function getPreviousMonthRange(d = new Date()) {
+  const date = d instanceof Date ? d : new Date(d);
+  const year = date.getMonth() === 0 ? date.getFullYear() - 1 : date.getFullYear();
+  const month = date.getMonth() === 0 ? 11 : date.getMonth() - 1;
+  const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const end = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end };
+}
+
+export function getCurrentYearRange(d = new Date()) {
+  const date = d instanceof Date ? d : new Date(d);
+  const year = date.getFullYear();
+  return {
+    start: `${year}-01-01`,
+    end: `${year}-12-31`,
+  };
+}
+
+export function getPrevMonthTargetDate(lastEntryDateStr, referenceDate = new Date()) {
+  const { start, end } = getPreviousMonthRange(referenceDate);
+  if (!lastEntryDateStr) {
+    return start;
+  }
+  const dateOnly = String(lastEntryDateStr).slice(0, 10);
+  if (dateOnly < start) {
+    return start;
+  }
+  if (dateOnly >= end) {
+    return end;
+  }
+  const [y, m, d] = dateOnly.split("-").map(Number);
+  const nextDay = d + 1;
+  const monthStr = String(m).padStart(2, "0");
+  const dayStr = String(nextDay).padStart(2, "0");
+  return `${y}-${monthStr}-${dayStr}`;
+}
+
+export * from "./smartInputParser.js";

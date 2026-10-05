@@ -22,12 +22,12 @@ export const CategoryBar = memo(function CategoryBar({
     <div className="o-category-row">
       <CategoryIcon icon={icon} name={name} />
       <div className="o-category-row-value">
-        {displayValue > 0 ? formatNumber(displayValue) : "0"}
+        {displayValue > 0 ? formatNumber(Math.round(displayValue)) : "0"}
       </div>
       <div
         className={`o-category-row-diff ${warning ? "a-clr-text-semantic-error" : "a-clr-text-semantic-success"}`}
       >
-        {diffValue > 0 ? formatNumber(diffValue) : "0"}
+        {diffValue > 0 ? formatNumber(Math.round(diffValue)) : "0"}
       </div>
       {isExpense && (
         <div className="o-category-row-bar-container">

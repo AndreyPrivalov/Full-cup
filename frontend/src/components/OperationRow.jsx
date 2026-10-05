@@ -2,12 +2,16 @@ import { memo } from "react";
 import { formatNumber, getCategoryIcon } from "../utils";
 import { CategoryIcon } from "./CategoryIcon";
 
-export const OperationRow = memo(function OperationRow({ operation, showBadges = false }) {
+export const OperationRow = memo(function OperationRow({
+  operation,
+  showBadges = false,
+  isNew = false,
+}) {
   const op = operation;
   const isIncome = op.type === "income";
 
   return (
-    <div className="m-operation-row">
+    <div className="m-operation-row" data-new={isNew ? "true" : undefined}>
       <CategoryIcon
         icon={getCategoryIcon(op.category_name || op.category)}
         name={op.category_name || op.category}

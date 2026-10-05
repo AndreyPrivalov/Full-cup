@@ -53,6 +53,7 @@ export const EditableCell = memo(function EditableCell({
   context = "overlay",
   className = "",
   options = [],
+  title: customTitle,
 }) {
   const [currentValue, setCurrentValue] = useState(value ?? "");
   const [isFocused, setIsFocused] = useState(false);
@@ -162,7 +163,7 @@ export const EditableCell = memo(function EditableCell({
               }
             }
           }}
-          title="Нажмите, чтобы выбрать дату"
+          title={customTitle || "Нажмите, чтобы выбрать дату"}
           style={{
             display: "flex",
             alignItems: "center",
@@ -248,7 +249,7 @@ export const EditableCell = memo(function EditableCell({
       }}
       onKeyDown={handleKeyDown}
       placeholder={placeholder}
-      title={isFocused ? "" : "Нажмите, чтобы изменить"}
+      title={isFocused ? "" : customTitle !== undefined ? customTitle : "Нажмите, чтобы изменить"}
     />
   );
 });

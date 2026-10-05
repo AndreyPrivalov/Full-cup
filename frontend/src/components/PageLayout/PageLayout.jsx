@@ -1,12 +1,15 @@
+import { PageColumn, PageContainer, PageGrid } from "./PageContainer.jsx";
+
 /**
  * Global Page Layout Shell.
- * Wraps the entire page, including the main 1072px constrained area and the optional right sidebar (e.g. form).
+ * Wraps the entire page with unconstrained width, including top header, main content area,
+ * and optional right sidebar.
  */
-export function PageLayout({ header, sidebar, fullWidth = false, children }) {
+export function PageLayout({ header, sidebar, children }) {
   return (
     <div className="o-page-layout">
       <main className="o-page-main">
-        <div className="o-page-container" style={fullWidth ? { maxWidth: "100%" } : undefined}>
+        <div className="o-page-container">
           {header && <div className="o-page-header-wrapper">{header}</div>}
           {children}
         </div>
@@ -16,27 +19,8 @@ export function PageLayout({ header, sidebar, fullWidth = false, children }) {
   );
 }
 
-/**
- * Grid to divide the 1072px container into 1 or 2 columns.
- * @param {number} columns - 1 or 2
- */
-export function PageGrid({ columns = 1, children }) {
-  return (
-    <div className={`o-page-grid ${columns === 2 ? "o-page-grid-2" : "o-page-grid-1"}`}>
-      {children}
-    </div>
-  );
-}
+export { PageColumn, PageContainer, PageGrid };
 
-/**
- * Column to be placed inside PageGrid.
- * @param {"left" | "right"} position - the position of the column
- */
-export function PageColumn({ position = "left", children }) {
-  return (
-    <div className={position === "right" ? "o-page-col-right" : "o-page-col-left"}>{children}</div>
-  );
-}
-
+PageLayout.Container = PageContainer;
 PageLayout.Grid = PageGrid;
 PageLayout.Column = PageColumn;

@@ -6,7 +6,7 @@ import { useEntityList } from "../hooks/useEntityList";
 import { formatCurrency, getLocalMonthString } from "../utils";
 import { DeleteButton } from "./DeleteButton";
 import { OperationRow } from "./OperationRow";
-import { PageColumn, PageGrid } from "./PageLayout/index.jsx";
+import { PageContainer } from "./PageLayout/index.jsx";
 
 export const KaifBalanceView = () => {
   const queryClient = useQueryClient();
@@ -131,84 +131,82 @@ export const KaifBalanceView = () => {
   }, [operations, currentMonthPrefix]);
 
   return (
-    <PageGrid columns={1}>
-      <PageColumn position="left">
-        <div className="o-kaif-grid">
-          {banks.map((bank) => {
-            const spent = bank.spent_this_month || 0;
-            const limit = bank.month_limit;
-            const remaining = limit - spent;
-            const progressPercent = Math.round(Math.min((spent / limit) * 100, 100));
-            const remainingPercent = Math.max(0, 100 - progressPercent);
-            const isWarning = progressPercent >= 90;
+    <PageContainer variant="single">
+      <div className="o-kaif-grid">
+        {banks.map((bank) => {
+          const spent = bank.spent_this_month || 0;
+          const limit = bank.month_limit;
+          const remaining = limit - spent;
+          const progressPercent = Math.round(Math.min((spent / limit) * 100, 100));
+          const remainingPercent = Math.max(0, 100 - progressPercent);
+          const isWarning = progressPercent >= 90;
 
-            const bankOperations = bankOperationsMap.get(bank.id) || [];
+          const bankOperations = bankOperationsMap.get(bank.id) || [];
 
-            return (
-              <div key={bank.id} className="a-flex a-flex-col">
-                <div className="a-flex a-justify-between a-items-center">
-                  <div className="a-flex a-items-baseline a-gap-4">
-                    <span
-                      className="a-text-sd a-clr-text-primary a-cursor-pointer"
-                      onClick={() => handleEditName(bank)}
-                    >
-                      {bank.name}
-                    </span>
-                    <span className="a-text-sd a-clr-text-secondary">{remainingPercent}%</span>
-                  </div>
-                  <DeleteButton
-                    onClick={() => handleDeleteBank(bank)}
-                    title="Удалить счет"
-                    size="s"
-                  />
-                </div>
-
-                <div className="a-flex a-justify-between a-items-baseline a-mt-8">
-                  <span className="a-text-ld a-clr-text-primary">{formatCurrency(remaining)}</span>
+          return (
+            <div key={bank.id} className="a-flex a-flex-col">
+              <div className="a-flex a-justify-between a-items-center">
+                <div className="a-flex a-items-baseline a-gap-4">
                   <span
                     className="a-text-sd a-clr-text-primary a-cursor-pointer"
-                    onClick={() => handleEditLimit(bank)}
+                    onClick={() => handleEditName(bank)}
                   >
-                    из {limit.toLocaleString("ru-RU")}
+                    {bank.name}
                   </span>
+                  <span className="a-text-sd a-clr-text-secondary">{remainingPercent}%</span>
                 </div>
+                <DeleteButton
+                  onClick={() => handleDeleteBank(bank)}
+                  title="Удалить счет"
+                  size="s"
+                />
+              </div>
 
-                <div className="m-bar-track a-mt-4" data-size="s">
-                  <div className="m-bar-fill" style={{ width: `${remainingPercent}%` }}>
-                    <div
-                      className={`m-bar-segment ${isWarning ? "a-bg-semantic-error" : "a-bg-accent"}`}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                </div>
+              <div className="a-flex a-justify-between a-items-baseline a-mt-8">
+                <span className="a-text-ld a-clr-text-primary">{formatCurrency(remaining)}</span>
+                <span
+                  className="a-text-sd a-clr-text-primary a-cursor-pointer"
+                  onClick={() => handleEditLimit(bank)}
+                >
+                  из {limit.toLocaleString("ru-RU")}
+                </span>
+              </div>
 
-                <div className="a-flex a-flex-col a-gap-8 a-mt-16">
-                  {bankOperations.length === 0 && (
-                    <div className="a-text-sd a-clr-text-secondary a-mt-8">
-                      Нет операций в этом месяце
-                    </div>
-                  )}
-                  {bankOperations.map((tx) => (
-                    <OperationRow key={tx.id} operation={tx} showBadges={false} />
-                  ))}
+              <div className="m-bar-track a-mt-4" data-size="s">
+                <div className="m-bar-fill" style={{ width: `${remainingPercent}%` }}>
+                  <div
+                    className={`m-bar-segment ${isWarning ? "a-bg-semantic-error" : "a-bg-accent"}`}
+                    style={{ width: "100%" }}
+                  />
                 </div>
               </div>
-            );
-          })}
-        </div>
 
-        <div className="a-flex a-justify-start a-mt-24">
-          <button
-            type="button"
-            className="m-button"
-            data-variant="primary"
-            data-size="m"
-            onClick={handleAddBank}
-          >
-            Добавить счет
-          </button>
-        </div>
-      </PageColumn>
-    </PageGrid>
+              <div className="a-flex a-flex-col a-gap-8 a-mt-16">
+                {bankOperations.length === 0 && (
+                  <div className="a-text-sd a-clr-text-secondary a-mt-8">
+                    Нет операций в этом месяце
+                  </div>
+                )}
+                {bankOperations.map((tx) => (
+                  <OperationRow key={tx.id} operation={tx} showBadges={false} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="a-flex a-justify-start a-mt-24">
+        <button
+          type="button"
+          className="m-button"
+          data-variant="primary"
+          data-size="m"
+          onClick={handleAddBank}
+        >
+          Добавить счет
+        </button>
+      </div>
+    </PageContainer>
   );
 };

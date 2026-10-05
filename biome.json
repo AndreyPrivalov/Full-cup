@@ -15,6 +15,9 @@
     "enabled": true,
     "rules": {
       "recommended": true,
+      "correctness": {
+        "noUndeclaredVariables": "error"
+      },
       "a11y": {
         "noStaticElementInteractions": "off",
         "useKeyWithClickEvents": "off"

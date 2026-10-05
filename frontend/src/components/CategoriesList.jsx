@@ -37,6 +37,7 @@ export function CategoriesList({ type, title, data = [], controlPeriod, setContr
         <>
           <span
             className="m-tab"
+            data-size="s"
             data-active={activeTab === "current"}
             onClick={() => setActiveTab("current")}
           >
@@ -44,6 +45,7 @@ export function CategoriesList({ type, title, data = [], controlPeriod, setContr
           </span>
           <span
             className="m-tab"
+            data-size="s"
             data-active={activeTab === "control"}
             onClick={() => setActiveTab("control")}
           >
@@ -100,12 +102,14 @@ export function CategoriesList({ type, title, data = [], controlPeriod, setContr
             </span>
           </CategoryIcon>
           <div className="o-category-row-value">
-            {activeTab === "current" ? formatNumber(sum) : formatNumber(prevSum)}
+            {activeTab === "current"
+              ? formatNumber(Math.round(sum))
+              : formatNumber(Math.round(prevSum))}
           </div>
           <div
             className={`o-category-row-diff ${totalWarning ? "a-clr-text-semantic-error" : "a-clr-text-semantic-success"}`}
           >
-            {sumDiffValue > 0 ? formatNumber(sumDiffValue) : "0"}
+            {sumDiffValue > 0 ? formatNumber(Math.round(sumDiffValue)) : "0"}
           </div>
           {isExpense && (
             <div className="o-category-row-bar-container">
