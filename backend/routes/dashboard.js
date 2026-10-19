@@ -42,7 +42,7 @@ function calcItemWithPercentage(item, spentField) {
 // GET /api/dashboard
 router.get(
   "/",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth(); // 0-11
@@ -92,8 +92,8 @@ router.get(
     const allEndDates = [currentMonthEnd, prevMonthEnd, controlPeriodEnd];
     const maxDate = allEndDates.reduce((max, d) => (d > max ? d : max), allEndDates[0]);
 
-    const getCategoriesData = (type) => {
-      return db
+    const getCategoriesData = async (type) => {
+      return await db
         .select({
           id: categories.id,
           name: categories.name,
@@ -116,31 +116,34 @@ router.get(
           sql`${categories.id} = ${transactions.category_id} AND ${transactions.type} = ${type} AND ${transactions.date} >= ${minDate} AND ${transactions.date} <= ${maxDate}`,
         )
         .where(eq(categories.type, type))
-        .groupBy(categories.id)
-        .all();
+        .groupBy(categories.id);
     };
 
-    const categories_expenses = getCategoriesData("expense");
-    const categories_incomes = getCategoriesData("income");
+    const getBanksData = async () => {
+      return await db
+        .select({
+          id: banks.id,
+          name: banks.name,
+          month_limit: banks.month_limit,
+          spent_this_month: sql`COALESCE((
+            SELECT SUM(tb.amount)
+            FROM transaction_banks tb
+            JOIN transactions t ON t.id = tb.transaction_id
+            WHERE tb.bank_id = banks.id
+              AND t.type = 'expense'
+              AND t.date >= ${currentMonthStart}
+              AND t.date <= ${currentMonthEnd}
+          ), 0)`.mapWith(Number),
+        })
+        .from(banks)
+        .orderBy(banks.id);
+    };
 
-    const banksRaw = db
-      .select({
-        id: banks.id,
-        name: banks.name,
-        month_limit: banks.month_limit,
-        spent_this_month: sql`COALESCE((
-          SELECT SUM(tb.amount)
-          FROM transaction_banks tb
-          JOIN transactions t ON t.id = tb.transaction_id
-          WHERE tb.bank_id = banks.id
-            AND t.type = 'expense'
-            AND t.date >= ${currentMonthStart}
-            AND t.date <= ${currentMonthEnd}
-        ), 0)`.mapWith(Number),
-      })
-      .from(banks)
-      .orderBy(banks.id)
-      .all();
+    const [categories_expenses, categories_incomes, banksRaw] = await Promise.all([
+      getCategoriesData("expense"),
+      getCategoriesData("income"),
+      getBanksData(),
+    ]);
 
     const banks_result = banksRaw.map((b) => calcItemWithPercentage(b, "spent_this_month"));
 

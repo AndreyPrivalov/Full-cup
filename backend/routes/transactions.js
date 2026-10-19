@@ -16,7 +16,7 @@ const router = express.Router();
 // GET /api/transactions
 router.get(
   "/",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const conditions = [];
 
     if (req.query.type === "income" || req.query.type === "expense") {
@@ -56,7 +56,7 @@ router.get(
       }
     }
 
-    const data = fetchEnrichedTransactions(conditions, options);
+    const data = await fetchEnrichedTransactions(conditions, options);
     res.json(data);
   }),
 );
@@ -64,7 +64,7 @@ router.get(
 // GET /api/transactions/recent
 router.get(
   "/recent",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     let limit = 10;
     if (req.query.limit !== undefined) {
       const parsedLimit = Number.parseInt(req.query.limit, 10);
@@ -78,7 +78,7 @@ router.get(
       conditions.push(eq(transactions.type, req.query.type));
     }
 
-    const data = fetchEnrichedTransactions(conditions, { limit });
+    const data = await fetchEnrichedTransactions(conditions, { limit });
     res.json(data);
   }),
 );
@@ -86,7 +86,7 @@ router.get(
 // POST /api/transactions
 router.post(
   "/",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const body = req.body;
     const bank_ids = normalizeBankIds(body);
 
@@ -106,7 +106,7 @@ router.post(
       bank_ids.length > 0 ? (validatedData.bank_amount ?? validatedData.amount) : null;
 
     let createdId;
-    db.transaction((tx) => {
+    await db.transaction(async (tx) => {
       const insertValues = {
         amount: validatedData.amount,
         type: validatedData.type,
@@ -119,13 +119,13 @@ router.post(
       if (validatedData.id !== undefined) {
         insertValues.id = validatedData.id;
       }
-      const info = tx.insert(transactions).values(insertValues).run();
+      const info = await tx.insert(transactions).values(insertValues);
       createdId = insertValues.id !== undefined ? insertValues.id : Number(info.lastInsertRowid);
 
-      syncTransactionBanks(tx, createdId, bank_ids, finalBankAmount);
+      await syncTransactionBanks(tx, createdId, bank_ids, finalBankAmount);
     });
 
-    const enriched = fetchEnrichedTransactionById(createdId);
+    const enriched = await fetchEnrichedTransactionById(createdId);
     res.status(201).json(enriched);
   }),
 );
@@ -133,7 +133,7 @@ router.post(
 // PUT /api/transactions/batch
 router.put(
   "/batch",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const { ids, data } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: "ids must be a non-empty array" });
@@ -167,30 +167,29 @@ router.put(
       return res.status(400).json({ error: "No valid fields to update" });
     }
 
-    db.transaction((tx) => {
-      tx.update(transactions).set(dataToUpdate).where(inArray(transactions.id, cleanIds)).run();
+    await db.transaction(async (tx) => {
+      await tx.update(transactions).set(dataToUpdate).where(inArray(transactions.id, cleanIds));
 
       if (validatedData.amount !== undefined) {
-        tx.update(transactions)
+        await tx
+          .update(transactions)
           .set({ bank_amount: validatedData.amount })
-          .where(and(inArray(transactions.id, cleanIds), sql`${transactions.bank_id} IS NOT NULL`))
-          .run();
+          .where(and(inArray(transactions.id, cleanIds), sql`${transactions.bank_id} IS NOT NULL`));
 
         for (const txId of cleanIds) {
-          const linkedBanks = tx
+          const linkedBanks = await tx
             .select()
             .from(transactionBanks)
-            .where(eq(transactionBanks.transaction_id, txId))
-            .all();
+            .where(eq(transactionBanks.transaction_id, txId));
           if (linkedBanks.length > 0) {
             const bankIds = linkedBanks.map((b) => b.bank_id);
-            syncTransactionBanks(tx, txId, bankIds, validatedData.amount);
+            await syncTransactionBanks(tx, txId, bankIds, validatedData.amount);
           }
         }
       }
     });
 
-    const enriched = fetchEnrichedTransactions([inArray(transactions.id, cleanIds)]);
+    const enriched = await fetchEnrichedTransactions([inArray(transactions.id, cleanIds)]);
     res.json(enriched);
   }),
 );
@@ -198,7 +197,7 @@ router.put(
 // DELETE /api/transactions/batch
 router.delete(
   "/batch",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: "ids must be a non-empty array" });
@@ -208,9 +207,9 @@ router.delete(
       return res.status(400).json({ error: "No valid transaction IDs provided" });
     }
 
-    db.transaction((tx) => {
-      tx.delete(transactionBanks).where(inArray(transactionBanks.transaction_id, cleanIds)).run();
-      tx.delete(transactions).where(inArray(transactions.id, cleanIds)).run();
+    await db.transaction(async (tx) => {
+      await tx.delete(transactionBanks).where(inArray(transactionBanks.transaction_id, cleanIds));
+      await tx.delete(transactions).where(inArray(transactions.id, cleanIds));
     });
 
     res.status(204).send();
@@ -220,7 +219,7 @@ router.delete(
 // PUT /api/transactions/:id
 router.put(
   "/:id",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const { id } = req.params;
     const txId = Number(id);
 
@@ -257,16 +256,15 @@ router.put(
       }
     }
 
-    const existingTx = db.select().from(transactions).where(eq(transactions.id, txId)).get();
+    const [existingTx] = await db.select().from(transactions).where(eq(transactions.id, txId));
     if (!existingTx) {
       return res.status(404).json({ error: "Транзакция не найдена" });
     }
 
-    const existingBanks = db
+    const existingBanks = await db
       .select()
       .from(transactionBanks)
-      .where(eq(transactionBanks.transaction_id, txId))
-      .all();
+      .where(eq(transactionBanks.transaction_id, txId));
 
     let bankIdsChanged = false;
     let newBankIds = existingBanks.map((b) => b.bank_id);
@@ -324,17 +322,17 @@ router.put(
       dataToUpdate.bank_amount = newBankIds.length > 0 ? newBankAmount : null;
     }
 
-    db.transaction((tx) => {
+    await db.transaction(async (tx) => {
       if (Object.keys(dataToUpdate).length > 0) {
-        tx.update(transactions).set(dataToUpdate).where(eq(transactions.id, txId)).run();
+        await tx.update(transactions).set(dataToUpdate).where(eq(transactions.id, txId));
       }
 
       if (bankIdsChanged || bankAmountChanged || validatedData.amount !== undefined) {
-        syncTransactionBanks(tx, txId, newBankIds, newBankAmount);
+        await syncTransactionBanks(tx, txId, newBankIds, newBankAmount);
       }
     });
 
-    const enriched = fetchEnrichedTransactionById(txId);
+    const enriched = await fetchEnrichedTransactionById(txId);
     res.json(enriched);
   }),
 );
@@ -342,18 +340,21 @@ router.put(
 // DELETE /api/transactions/:id
 router.delete(
   "/:id",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const { id } = req.params;
     const txId = Number(id);
 
-    db.transaction((tx) => {
-      tx.delete(transactionBanks).where(eq(transactionBanks.transaction_id, txId)).run();
-      const info = tx.delete(transactions).where(eq(transactions.id, txId)).run();
-      if (info.changes === 0) {
-        return res.status(404).json({ error: "Транзакция не найдена" });
-      }
-      res.status(204).send();
+    let deleted = false;
+    await db.transaction(async (tx) => {
+      await tx.delete(transactionBanks).where(eq(transactionBanks.transaction_id, txId));
+      const info = await tx.delete(transactions).where(eq(transactions.id, txId));
+      deleted = info.rowsAffected > 0;
     });
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Транзакция не найдена" });
+    }
+    res.status(204).send();
   }),
 );
 

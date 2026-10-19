@@ -1,4 +1,4 @@
-import { count, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import express from "express";
 import {
   banks,
@@ -35,34 +35,34 @@ function getCsvText(req) {
 // GET /api/backup/stats - Live record counts in O(1) time
 router.get(
   "/stats",
-  apiHandler((_req, res) => {
-    res.json(getDatabaseStats());
+  apiHandler(async (_req, res) => {
+    res.json(await getDatabaseStats());
   }),
 );
 
 // GET /api/backup/export/:table - Export individual table as CSV
 router.get(
   "/export/:table",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const { table } = req.params;
     const today = new Date().toISOString().split("T")[0];
     const filename = `backup_${table}_${today}.csv`;
     let csvContent = "";
 
     if (table === "categories") {
-      const data = db.select().from(categories).orderBy(categories.id).all();
+      const data = await db.select().from(categories).orderBy(categories.id);
       csvContent = exportToCsv(["id", "name", "type"], data);
     } else if (table === "banks") {
-      const data = db.select().from(banks).orderBy(banks.id).all();
+      const data = await db.select().from(banks).orderBy(banks.id);
       csvContent = exportToCsv(["id", "name", "month_limit"], data);
     } else if (table === "savings") {
-      const data = db.select().from(savings).orderBy(savings.date).all();
+      const data = await db.select().from(savings).orderBy(savings.date);
       csvContent = exportToCsv(
         ["id", "date", "cash", "electronic", "global_projects", "debts"],
         data,
       );
     } else if (table === "transactions") {
-      const data = db
+      const data = await db
         .select({
           id: transactions.id,
           date: transactions.date,
@@ -78,8 +78,7 @@ router.get(
         .from(transactions)
         .leftJoin(categories, eq(transactions.category_id, categories.id))
         .leftJoin(banks, eq(transactions.bank_id, banks.id))
-        .orderBy(desc(transactions.date), desc(transactions.id))
-        .all();
+        .orderBy(desc(transactions.date), desc(transactions.id));
 
       csvContent = exportToCsv(
         [
@@ -97,7 +96,7 @@ router.get(
         data,
       );
     } else if (table === "transaction_banks") {
-      const data = db.select().from(transactionBanks).all();
+      const data = await db.select().from(transactionBanks);
       csvContent = exportToCsv(["id", "transaction_id", "bank_id", "amount"], data);
     } else {
       return res.status(400).json({ error: `Неизвестная таблица: ${table}` });
@@ -112,8 +111,8 @@ router.get(
 // GET /api/backup/export-all - Full backup bundle (JSON containing all CSVs)
 router.get(
   "/export-all",
-  apiHandler((_req, res) => {
-    const bundle = getFullDataBundle();
+  apiHandler(async (_req, res) => {
+    const bundle = await getFullDataBundle();
 
     const result = {
       version: "1.0",
@@ -158,11 +157,11 @@ router.get(
   }),
 );
 
-// GET /api/backup/sheets-bundle - Raw JSON dataset of all tables for Google Sheets sync
+// GET /api/backup/sheets-bundle - Raw JSON dataset of all tables for Google Sheets backup
 router.get(
   "/sheets-bundle",
-  apiHandler((_req, res) => {
-    const bundle = getFullDataBundle();
+  apiHandler(async (_req, res) => {
+    const bundle = await getFullDataBundle();
     res.json({
       categories: bundle.categories,
       banks: bundle.banks,
@@ -175,7 +174,7 @@ router.get(
 // POST /api/backup/sheets-restore - Full restore from Google Sheets JSON data
 router.post(
   "/sheets-restore",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const body = req.body;
     if (!body || typeof body !== "object") {
       return res.status(400).json({ error: "Некорректный формат данных" });
@@ -185,8 +184,8 @@ router.post(
 
     let results = {};
     try {
-      db.transaction((tx) => {
-        results = restoreAllDataset(tx, body, "replace");
+      await db.transaction(async (tx) => {
+        results = await restoreAllDataset(tx, body, "replace");
       });
     } catch (err) {
       rollbackSafetySnapshot("replace", err);
@@ -203,7 +202,7 @@ router.post(
 // POST /api/backup/import/:table - Import CSV into specified table
 router.post(
   "/import/:table",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const { table } = req.params;
     const mode = (req.query.mode || req.body?.mode || "replace").toLowerCase();
     const csvText = getCsvText(req);
@@ -216,8 +215,8 @@ router.post(
 
     let insertedCount = 0;
     try {
-      db.transaction((tx) => {
-        insertedCount = importTableData(tx, table, csvText, mode);
+      await db.transaction(async (tx) => {
+        insertedCount = await importTableData(tx, table, csvText, mode);
       });
     } catch (err) {
       rollbackSafetySnapshot(mode, err);
@@ -236,7 +235,7 @@ router.post(
 // POST /api/backup/import-all - Full backup restore from JSON bundle
 router.post(
   "/import-all",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const body = req.body;
     if (!body?.tables) {
       return res.status(400).json({ error: "Некорректный формат файла бэкапа" });
@@ -248,27 +247,32 @@ router.post(
     createSafetySnapshot(mode);
 
     try {
-      db.transaction((tx) => {
+      await db.transaction(async (tx) => {
         if (mode === "replace") {
-          tx.delete(transactionBanks).run();
-          tx.delete(transactions).run();
-          tx.delete(savings).run();
-          tx.delete(banks).run();
-          tx.delete(categories).run();
+          await tx.delete(transactionBanks);
+          await tx.delete(transactions);
+          await tx.delete(savings);
+          await tx.delete(banks);
+          await tx.delete(categories);
         }
 
         const tableMode = mode === "replace" ? "append" : mode;
         if (body.tables.categories) {
-          results.categories = importTableData(tx, "categories", body.tables.categories, tableMode);
+          results.categories = await importTableData(
+            tx,
+            "categories",
+            body.tables.categories,
+            tableMode,
+          );
         }
         if (body.tables.banks) {
-          results.banks = importTableData(tx, "banks", body.tables.banks, tableMode);
+          results.banks = await importTableData(tx, "banks", body.tables.banks, tableMode);
         }
         if (body.tables.savings) {
-          results.savings = importTableData(tx, "savings", body.tables.savings, tableMode);
+          results.savings = await importTableData(tx, "savings", body.tables.savings, tableMode);
         }
         if (body.tables.transactions) {
-          results.transactions = importTableData(
+          results.transactions = await importTableData(
             tx,
             "transactions",
             body.tables.transactions,
@@ -276,8 +280,8 @@ router.post(
           );
         }
         if (body.tables.transaction_banks) {
-          tx.delete(transactionBanks).run();
-          results.transaction_banks = importTableData(
+          await tx.delete(transactionBanks);
+          results.transaction_banks = await importTableData(
             tx,
             "transaction_banks",
             body.tables.transaction_banks,
@@ -332,68 +336,6 @@ router.get(
   }),
 );
 
-/**
- * Auto-hydrates database from Google Sheets if DB is empty or when forced.
- */
-export async function autoHydrateFromGoogleSheets(
-  webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL,
-  force = false,
-) {
-  if (!webhookUrl) return null;
-  const check = validateGoogleSheetsUrl(webhookUrl);
-  if (!check.valid) {
-    console.warn("Invalid Google Sheets webhook URL format:", check.error);
-    return null;
-  }
-
-  if (!force) {
-    const [txCount] = db.select({ count: count() }).from(transactions).all();
-    if (txCount && txCount.count > 0) {
-      return null;
-    }
-  }
-
-  try {
-    console.log("Hydrating database from Google Sheets:", check.url);
-    const separator = check.url.includes("?") ? "&" : "?";
-    const pullUrl = `${check.url}${separator}action=pull`;
-    const response = await fetch(pullUrl, {
-      method: "GET",
-      headers: { Accept: "application/json", ...GSHEETS_HEADERS },
-      redirect: "follow",
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!response.ok || response.url.includes("accounts.google.com")) {
-      console.warn("Auto-hydrate HTTP failed:", formatGoogleSheetsHttpError(response));
-      return null;
-    }
-
-    const rawText = await response.text();
-    let json = null;
-    try {
-      json = JSON.parse(rawText);
-    } catch {
-      console.warn("Auto-hydrate JSON parse error, text length:", rawText.length);
-      return null;
-    }
-
-    if (!json?.success || !json?.data) {
-      console.warn("Auto-hydrate received invalid data payload:", json);
-      return null;
-    }
-
-    db.transaction((tx) => {
-      restoreAllDataset(tx, json.data, "replace");
-    });
-    console.log("Auto-hydrate from Google Sheets completed successfully!");
-    return json.data;
-  } catch (err) {
-    console.warn("Auto-hydrate from Google Sheets failed:", err.message);
-    return null;
-  }
-}
-
 // POST /api/backup/google-sheets/test - Diagnostics & Connection Check
 router.post(
   "/google-sheets/test",
@@ -446,56 +388,7 @@ router.post(
   }),
 );
 
-// POST /api/backup/google-sheets/batch - Send debounced queue actions to Google Sheets
-router.post(
-  "/google-sheets/batch",
-  apiHandler(async (req, res) => {
-    const { url, actions } = req.body || {};
-    const check = validateGoogleSheetsUrl(url);
-    if (!check.valid) {
-      return res.status(400).json({ success: false, error: check.error });
-    }
-    if (!Array.isArray(actions) || actions.length === 0) {
-      return res.json({ success: true, count: 0 });
-    }
-
-    try {
-      const response = await fetch(check.url, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8", ...GSHEETS_HEADERS },
-        body: JSON.stringify({
-          action: "batch",
-          actions,
-        }),
-        redirect: "follow",
-      });
-
-      if (!response.ok || response.url.includes("accounts.google.com")) {
-        return res.status(response.status || 500).json({
-          success: false,
-          error: formatGoogleSheetsHttpError(response),
-        });
-      }
-
-      const resData = await response.json().catch(() => ({}));
-      if (resData.success === false) {
-        return res.status(500).json({ success: false, error: resData.error });
-      }
-
-      res.json({
-        success: true,
-        applied: resData.applied ?? actions.length,
-      });
-    } catch (err) {
-      res.status(500).json({
-        success: false,
-        error: err.message || "Ошибка связи с Google Таблицей",
-      });
-    }
-  }),
-);
-
-// POST /api/backup/google-sheets/push - Full initial push from SQLite to Google Sheets
+// POST /api/backup/google-sheets/push - Full push from Database to Google Sheets
 router.post(
   "/google-sheets/push",
   apiHandler(async (req, res) => {
@@ -505,7 +398,7 @@ router.post(
       return res.status(400).json({ success: false, error: check.error });
     }
 
-    const bundle = getFullDataBundle();
+    const bundle = await getFullDataBundle();
 
     try {
       const response = await fetch(check.url, {
@@ -553,7 +446,7 @@ router.post(
   }),
 );
 
-// POST /api/backup/google-sheets/pull - Full pull from Google Sheets into SQLite
+// POST /api/backup/google-sheets/pull - Full pull from Google Sheets into Database
 router.post(
   "/google-sheets/pull",
   apiHandler(async (req, res) => {
@@ -611,8 +504,8 @@ router.post(
       createSafetySnapshot("replace");
 
       let results = {};
-      db.transaction((tx) => {
-        results = restoreAllDataset(tx, json.data, "replace");
+      await db.transaction(async (tx) => {
+        results = await restoreAllDataset(tx, json.data, "replace");
       });
 
       res.json({

@@ -11,10 +11,10 @@ const router = express.Router();
 // GET /api/banks
 router.get(
   "/",
-  apiHandler((_req, res) => {
+  apiHandler(async (_req, res) => {
     const { start: currentMonthStart, end: currentMonthEnd } = getCurrentMonthRange();
 
-    const data = db
+    const data = await db
       .select({
         id: banks.id,
         name: banks.name,
@@ -30,8 +30,7 @@ router.get(
         ), 0)`.mapWith(Number),
       })
       .from(banks)
-      .orderBy(banks.id)
-      .all();
+      .orderBy(banks.id);
 
     const result = data.map((b) => ({
       ...b,
@@ -45,22 +44,19 @@ router.get(
 // POST /api/banks
 router.post(
   "/",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const validatedData = insertBankSchema.parse({
       name: req.body.name,
       month_limit: Number(req.body.month_limit),
     });
 
-    const info = db
-      .insert(banks)
-      .values({
-        name: validatedData.name.trim(),
-        month_limit: validatedData.month_limit,
-      })
-      .run();
+    const info = await db.insert(banks).values({
+      name: validatedData.name.trim(),
+      month_limit: validatedData.month_limit,
+    });
 
     res.status(201).json({
-      id: info.lastInsertRowid,
+      id: Number(info.lastInsertRowid),
       name: validatedData.name.trim(),
       month_limit: validatedData.month_limit,
     });
@@ -70,7 +66,7 @@ router.post(
 // PUT /api/banks/:id
 router.put(
   "/:id",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const { id } = req.params;
 
     const validatedData = insertBankSchema.parse({
@@ -78,16 +74,15 @@ router.put(
       month_limit: Number(req.body.month_limit),
     });
 
-    const info = db
+    const info = await db
       .update(banks)
       .set({
         name: validatedData.name.trim(),
         month_limit: validatedData.month_limit,
       })
-      .where(eq(banks.id, Number(id)))
-      .run();
+      .where(eq(banks.id, Number(id)));
 
-    if (info.changes === 0) {
+    if (info.rowsAffected === 0) {
       return res.status(404).json({ error: "Банк не найден" });
     }
 
@@ -102,27 +97,26 @@ router.put(
 // DELETE /api/banks/:id
 router.delete(
   "/:id",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const { id } = req.params;
     const bankId = Number(id);
 
     let bankFound = false;
 
-    db.transaction((tx) => {
+    await db.transaction(async (tx) => {
       // Find all transaction IDs linked to this bank before deletion
-      const affectedTxIds = tx
+      const affectedRows = await tx
         .select({ id: transactionBanks.transaction_id })
         .from(transactionBanks)
-        .where(eq(transactionBanks.bank_id, bankId))
-        .all()
-        .map((r) => r.id);
+        .where(eq(transactionBanks.bank_id, bankId));
+      const affectedTxIds = affectedRows.map((r) => r.id);
 
-      tx.delete(transactionBanks).where(eq(transactionBanks.bank_id, bankId)).run();
-      tx.update(transactions).set({ bank_id: null }).where(eq(transactions.bank_id, bankId)).run();
+      await tx.delete(transactionBanks).where(eq(transactionBanks.bank_id, bankId));
+      await tx.update(transactions).set({ bank_id: null }).where(eq(transactions.bank_id, bankId));
 
       // For any transaction that lost its bank_id but has remaining banks in transaction_banks,
       // update bank_id to point to the first remaining bank
-      tx.run(sql`
+      await tx.run(sql`
         UPDATE transactions
         SET bank_id = (
           SELECT tb.bank_id
@@ -136,7 +130,7 @@ router.delete(
       `);
 
       // For transactions with no remaining banks, clear bank_amount
-      tx.run(sql`
+      await tx.run(sql`
         UPDATE transactions
         SET bank_amount = NULL
         WHERE NOT EXISTS (
@@ -146,26 +140,23 @@ router.delete(
 
       // Recalculate remaining shares for affected transactions with remaining banks
       for (const txId of affectedTxIds) {
-        const remainingBanks = tx
+        const remainingBanks = await tx
           .select({ bank_id: transactionBanks.bank_id })
           .from(transactionBanks)
-          .where(eq(transactionBanks.transaction_id, txId))
-          .all();
+          .where(eq(transactionBanks.transaction_id, txId));
         if (remainingBanks.length > 0) {
-          const txRecord = tx
+          const [txRecord] = await tx
             .select({ amount: transactions.amount, bank_amount: transactions.bank_amount })
             .from(transactions)
-            .where(eq(transactions.id, txId))
-            .get();
+            .where(eq(transactions.id, txId));
           const totalBankAmount = txRecord?.bank_amount ?? txRecord?.amount ?? 0;
           const remainingBankIds = remainingBanks.map((b) => b.bank_id);
-          syncTransactionBanks(tx, txId, remainingBankIds, totalBankAmount);
+          await syncTransactionBanks(tx, txId, remainingBankIds, totalBankAmount);
         }
       }
 
-      const info = tx.delete(banks).where(eq(banks.id, bankId)).run();
-
-      bankFound = info.changes > 0;
+      const info = await tx.delete(banks).where(eq(banks.id, bankId));
+      bankFound = info.rowsAffected > 0;
     });
 
     if (!bankFound) {

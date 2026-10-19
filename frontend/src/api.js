@@ -12,30 +12,8 @@ const getApiBaseUrl = () => {
 
 const API_URL = getApiBaseUrl();
 
-const getCommonHeaders = () => {
-  const headers = {};
-  if (typeof window !== "undefined" && window.localStorage) {
-    const webhookUrl = window.localStorage.getItem("fullcup_gsheets_url");
-    if (webhookUrl) {
-      headers["x-gsheets-url"] = webhookUrl.trim();
-    }
-    const lastSynced = window.localStorage.getItem("fullcup_gsheets_last_synced");
-    if (lastSynced) {
-      headers["x-gsheets-last-synced"] = lastSynced;
-    }
-  }
-  return headers;
-};
-
 const apiFetch = (url, options = {}) => {
-  const commonHeaders = getCommonHeaders();
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...commonHeaders,
-      ...(options.headers || {}),
-    },
-  });
+  return fetch(url, options);
 };
 
 const handleResponse = async (response) => {
@@ -161,7 +139,7 @@ export const api = {
       body: csvText,
     }).then(handleResponse),
 
-  // Синхронизация с Google Таблицами
+  // Синхронизация и Бэкап в Google Таблицы
   getGoogleSheetsConfig: () => apiFetch(`${API_URL}/backup/gsheets-config`).then(handleResponse),
   getSheetsBundle: () => apiFetch(`${API_URL}/backup/sheets-bundle`).then(handleResponse),
   restoreFromSheets: (data) =>
@@ -175,12 +153,6 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
-    }).then(handleResponse),
-  postGoogleSheetsBatch: (url, actions) =>
-    apiFetch(`${API_URL}/backup/google-sheets/batch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, actions }),
     }).then(handleResponse),
   pushGoogleSheetsFull: (url) =>
     apiFetch(`${API_URL}/backup/google-sheets/push`, {

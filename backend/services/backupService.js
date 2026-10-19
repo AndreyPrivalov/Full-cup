@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { count, desc, eq, sql } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import {
   banks,
   categories,
@@ -10,19 +10,19 @@ import {
   transactions,
 } from "shared";
 import { DEFAULT_CATEGORIES } from "../db/defaultCategories.js";
-import { DB_PATH, db } from "../db/index.js";
+import { DB_PATH, db, isTurso } from "../db/index.js";
 import { parseCsv } from "../utils/csv.js";
 
 const DB_DIR = path.dirname(DB_PATH);
 export const PRE_RESTORE_PATH = path.join(DB_DIR, "fullcup.pre_restore.db");
 
 /**
- * Creates a safety copy of the database before destructive operations.
+ * Creates a safety copy of the database before destructive operations (local SQLite only).
  */
 export function createSafetySnapshot(mode = "replace") {
+  if (isTurso) return;
   if (mode === "replace" && fs.existsSync(DB_PATH)) {
     try {
-      db.run(sql`PRAGMA wal_checkpoint(TRUNCATE)`);
       fs.copyFileSync(DB_PATH, PRE_RESTORE_PATH);
     } catch (e) {
       console.warn("Could not create pre-restore snapshot:", e.message);
@@ -31,13 +31,13 @@ export function createSafetySnapshot(mode = "replace") {
 }
 
 /**
- * Rolls back to safety snapshot if an import operation fails.
+ * Rolls back to safety snapshot if an import operation fails (local SQLite only).
  */
 export function rollbackSafetySnapshot(mode = "replace", err) {
+  if (isTurso) return;
   if (mode === "replace" && fs.existsSync(PRE_RESTORE_PATH)) {
     console.error("Import failed, rolling back from safety snapshot:", err);
     try {
-      db.run(sql`PRAGMA wal_checkpoint(TRUNCATE)`);
       fs.copyFileSync(PRE_RESTORE_PATH, DB_PATH);
       console.log("Successfully restored database from safety snapshot.");
     } catch (restoreErr) {
@@ -47,14 +47,14 @@ export function rollbackSafetySnapshot(mode = "replace", err) {
 }
 
 /**
- * Helper to execute chunked batch inserts for optimal SQLite performance.
+ * Helper to execute chunked batch inserts for optimal database performance.
  */
-export function batchInsert(tx, table, items, chunkSize = 100) {
+export async function batchInsert(tx, table, items, chunkSize = 100) {
   if (!items || items.length === 0) return 0;
   let inserted = 0;
   for (let i = 0; i < items.length; i += chunkSize) {
     const chunk = items.slice(i, i + chunkSize);
-    tx.insert(table).values(chunk).run();
+    await tx.insert(table).values(chunk);
     inserted += chunk.length;
   }
   return inserted;
@@ -63,11 +63,11 @@ export function batchInsert(tx, table, items, chunkSize = 100) {
 /**
  * Live counts of all primary entities in O(1) time and memory.
  */
-export function getDatabaseStats(executor = db) {
-  const [txRes] = executor.select({ count: count() }).from(transactions).all();
-  const [savRes] = executor.select({ count: count() }).from(savings).all();
-  const [catRes] = executor.select({ count: count() }).from(categories).all();
-  const [bankRes] = executor.select({ count: count() }).from(banks).all();
+export async function getDatabaseStats(executor = db) {
+  const [txRes] = await executor.select({ count: count() }).from(transactions);
+  const [savRes] = await executor.select({ count: count() }).from(savings);
+  const [catRes] = await executor.select({ count: count() }).from(categories);
+  const [bankRes] = await executor.select({ count: count() }).from(banks);
 
   return {
     transactions: txRes?.count ?? 0,
@@ -80,15 +80,18 @@ export function getDatabaseStats(executor = db) {
 /**
  * Imports array of rows into a specified table within a transaction.
  */
-export function importRows(tx, tableName, rows, mode = "replace") {
+export async function importRows(tx, tableName, rows, mode = "replace") {
   if (!Array.isArray(rows) || rows.length === 0) {
     return 0;
   }
 
   if (tableName === "categories") {
     if (mode === "replace") {
-      tx.delete(categories).run();
+      await tx.delete(categories);
     }
+    const existingCats = await tx.select().from(categories);
+    const existingSet = new Set(existingCats.map((c) => `${c.name}:${c.type}`));
+
     const toInsert = [];
     const seen = new Set();
     for (const row of rows) {
@@ -96,31 +99,25 @@ export function importRows(tx, tableName, rows, mode = "replace") {
       const name = row.name.trim();
       const type = row.type.trim();
       const key = `${name}:${type}`;
-      if (seen.has(key)) continue;
+      if (seen.has(key) || existingSet.has(key)) continue;
       seen.add(key);
 
-      const existing = tx
-        .select()
-        .from(categories)
-        .where(eq(categories.name, name))
-        .all()
-        .find((c) => c.type === type);
-
-      if (!existing) {
-        const item = { name, type };
-        if (row.id) {
-          item.id = Number.parseInt(row.id, 10);
-        }
-        toInsert.push(item);
+      const item = { name, type };
+      if (row.id) {
+        item.id = Number.parseInt(row.id, 10);
       }
+      toInsert.push(item);
     }
-    return batchInsert(tx, categories, toInsert);
+    return await batchInsert(tx, categories, toInsert);
   }
 
   if (tableName === "banks") {
     if (mode === "replace") {
-      tx.delete(banks).run();
+      await tx.delete(banks);
     }
+    const existingBanks = await tx.select().from(banks);
+    const existingMap = new Map(existingBanks.map((b) => [b.name, b.id]));
+
     let inserted = 0;
     const seen = new Set();
     for (const row of rows) {
@@ -130,17 +127,17 @@ export function importRows(tx, tableName, rows, mode = "replace") {
       seen.add(name);
 
       const limit = Number.parseFloat(row.month_limit) || 0;
-      const existing = tx.select().from(banks).where(eq(banks.name, name)).get();
+      const existingId = existingMap.get(name);
 
-      if (!existing) {
+      if (!existingId) {
         const item = { name, month_limit: limit };
         if (row.id) {
           item.id = Number.parseInt(row.id, 10);
         }
-        tx.insert(banks).values(item).run();
+        await tx.insert(banks).values(item);
         inserted++;
       } else if (mode === "replace") {
-        tx.update(banks).set({ month_limit: limit }).where(eq(banks.id, existing.id)).run();
+        await tx.update(banks).set({ month_limit: limit }).where(eq(banks.id, existingId));
       }
     }
     return inserted;
@@ -148,7 +145,7 @@ export function importRows(tx, tableName, rows, mode = "replace") {
 
   if (tableName === "savings") {
     if (mode === "replace") {
-      tx.delete(savings).run();
+      await tx.delete(savings);
     }
     const toInsert = [];
     for (const row of rows) {
@@ -168,21 +165,21 @@ export function importRows(tx, tableName, rows, mode = "replace") {
       }
       toInsert.push(item);
     }
-    return batchInsert(tx, savings, toInsert);
+    return await batchInsert(tx, savings, toInsert);
   }
 
   if (tableName === "transactions") {
     if (mode === "replace") {
-      tx.delete(transactions).run();
+      await tx.delete(transactions);
     }
 
-    const allCats = tx.select().from(categories).all();
+    const allCats = await tx.select().from(categories);
     const catMap = new Map();
     for (const c of allCats) {
       catMap.set(`${c.name}:${c.type}`, c.id);
     }
 
-    const allBks = tx.select().from(banks).all();
+    const allBks = await tx.select().from(banks);
     const bankMap = new Map();
     for (const b of allBks) {
       bankMap.set(b.name, b.id);
@@ -203,13 +200,10 @@ export function importRows(tx, tableName, rows, mode = "replace") {
         if (catMap.has(catKey)) {
           categoryId = catMap.get(catKey);
         } else {
-          const info = tx
-            .insert(categories)
-            .values({
-              name: row.category_name.trim(),
-              type,
-            })
-            .run();
+          const info = await tx.insert(categories).values({
+            name: row.category_name.trim(),
+            type,
+          });
           categoryId = Number(info.lastInsertRowid);
           catMap.set(catKey, categoryId);
         }
@@ -246,17 +240,15 @@ export function importRows(tx, tableName, rows, mode = "replace") {
       if (row.id) {
         txValues.id = Number.parseInt(row.id, 10);
       }
-      const info = tx.insert(transactions).values(txValues).run();
+      const info = await tx.insert(transactions).values(txValues);
       const txId = txValues.id || Number(info.lastInsertRowid);
 
       if (bankId) {
-        tx.insert(transactionBanks)
-          .values({
-            transaction_id: txId,
-            bank_id: bankId,
-            amount: bankAmount ?? amount,
-          })
-          .run();
+        await tx.insert(transactionBanks).values({
+          transaction_id: txId,
+          bank_id: bankId,
+          amount: bankAmount ?? amount,
+        });
       }
       inserted++;
     }
@@ -265,7 +257,7 @@ export function importRows(tx, tableName, rows, mode = "replace") {
 
   if (tableName === "transaction_banks") {
     if (mode === "replace") {
-      tx.delete(transactionBanks).run();
+      await tx.delete(transactionBanks);
     }
     const toInsert = [];
     for (const row of rows) {
@@ -280,7 +272,7 @@ export function importRows(tx, tableName, rows, mode = "replace") {
       }
       toInsert.push(tbValues);
     }
-    return batchInsert(tx, transactionBanks, toInsert);
+    return await batchInsert(tx, transactionBanks, toInsert);
   }
 
   throw new Error(`Неизвестная таблица: ${tableName}`);
@@ -289,41 +281,41 @@ export function importRows(tx, tableName, rows, mode = "replace") {
 /**
  * Parses and imports CSV text into a table.
  */
-export function importTableData(tx, tableName, csvText, mode = "replace") {
+export async function importTableData(tx, tableName, csvText, mode = "replace") {
   const { rows } = parseCsv(csvText);
-  return importRows(tx, tableName, rows, mode);
+  return await importRows(tx, tableName, rows, mode);
 }
 
 /**
  * Restores entire database from structured dataset (e.g. from Google Sheets or JSON bundle).
  */
-export function restoreAllDataset(tx, dataset, mode = "replace") {
+export async function restoreAllDataset(tx, dataset, mode = "replace") {
   if (mode === "replace") {
-    tx.delete(transactionBanks).run();
-    tx.delete(transactions).run();
-    tx.delete(savings).run();
-    tx.delete(banks).run();
-    tx.delete(categories).run();
+    await tx.delete(transactionBanks);
+    await tx.delete(transactions);
+    await tx.delete(savings);
+    await tx.delete(banks);
+    await tx.delete(categories);
   }
 
   const results = {};
   const tableMode = mode === "replace" ? "append" : mode;
 
   if (Array.isArray(dataset.categories)) {
-    results.categories = importRows(tx, "categories", dataset.categories, tableMode);
+    results.categories = await importRows(tx, "categories", dataset.categories, tableMode);
   }
   if (Array.isArray(dataset.banks)) {
-    results.banks = importRows(tx, "banks", dataset.banks, tableMode);
+    results.banks = await importRows(tx, "banks", dataset.banks, tableMode);
   }
   if (Array.isArray(dataset.savings)) {
-    results.savings = importRows(tx, "savings", dataset.savings, tableMode);
+    results.savings = await importRows(tx, "savings", dataset.savings, tableMode);
   }
   if (Array.isArray(dataset.transactions)) {
-    results.transactions = importRows(tx, "transactions", dataset.transactions, tableMode);
+    results.transactions = await importRows(tx, "transactions", dataset.transactions, tableMode);
   }
   if (Array.isArray(dataset.transaction_banks) && dataset.transaction_banks.length > 0) {
-    tx.delete(transactionBanks).run();
-    results.transaction_banks = importRows(
+    await tx.delete(transactionBanks);
+    results.transaction_banks = await importRows(
       tx,
       "transaction_banks",
       dataset.transaction_banks,
@@ -332,9 +324,9 @@ export function restoreAllDataset(tx, dataset, mode = "replace") {
   }
 
   // Ensure default categories are present if categories table is empty
-  const [catCheck] = tx.select({ count: count() }).from(categories).all();
+  const [catCheck] = await tx.select({ count: count() }).from(categories);
   if (!catCheck || catCheck.count === 0) {
-    results.categories = importRows(tx, "categories", DEFAULT_CATEGORIES, "append");
+    results.categories = await importRows(tx, "categories", DEFAULT_CATEGORIES, "append");
   }
 
   return results;
@@ -343,12 +335,12 @@ export function restoreAllDataset(tx, dataset, mode = "replace") {
 /**
  * Fetches all data formatted as structured bundle for Google Sheets or exports.
  */
-export function getFullDataBundle(executor = db) {
-  const cats = executor.select().from(categories).orderBy(categories.id).all();
-  const bks = executor.select().from(banks).orderBy(banks.id).all();
-  const savs = executor.select().from(savings).orderBy(savings.date).all();
-  const txBanks = executor.select().from(transactionBanks).all();
-  const txs = executor
+export async function getFullDataBundle(executor = db) {
+  const cats = await executor.select().from(categories).orderBy(categories.id);
+  const bks = await executor.select().from(banks).orderBy(banks.id);
+  const savs = await executor.select().from(savings).orderBy(savings.date);
+  const txBanks = await executor.select().from(transactionBanks);
+  const txs = await executor
     .select({
       id: transactions.id,
       date: transactions.date,
@@ -364,8 +356,7 @@ export function getFullDataBundle(executor = db) {
     .from(transactions)
     .leftJoin(categories, eq(transactions.category_id, categories.id))
     .leftJoin(banks, eq(transactions.bank_id, banks.id))
-    .orderBy(desc(transactions.date), desc(transactions.id))
-    .all();
+    .orderBy(desc(transactions.date), desc(transactions.id));
 
   return {
     categories: cats,

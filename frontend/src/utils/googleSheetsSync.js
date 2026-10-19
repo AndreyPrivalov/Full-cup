@@ -1,57 +1,55 @@
 /**
  * ============================================================================
- * Google Sheets Sync Engine (Local-First + Optimistic Background Queue)
+ * Google Sheets Backup Service (Session-End & Manual Snapshot Backup)
  * ============================================================================
  *
- * Особенности:
- * 1. Дебаунс 2500 мс перед отправкой пакета.
- * 2. Взаимное схлопывание отмен (Debounced Cancellation):
- *    - ADD + DELETE с тем же ID взаимно уничтожаются в памяти.
- *    - DELETE + ADD с тем же ID взаимно уничтожаются в памяти.
- *    - Повторные UPDATE для одной записи объединяются.
- * 3. Очередь сохраняется в localStorage для защиты от закрытия вкладки при сбоях сети.
- * 4. Предотвращение CORS-блокировки: запросы отправляются с Content-Type: text/plain.
+ * Архитектура:
+ * 1. Основным источником правды является постоянная база данных (Turso Cloud / LibSQL).
+ * 2. Google Таблица используется как безопасный автономный архив (бэкап).
+ * 3. При изменении данных взводится флаг изменений (isDirty).
+ * 4. Полный снимок данных выгружается в Google Таблицу:
+ *    - Автоматически при завершении сессии (закрытие вкладки / переключение на другую вкладку).
+ *    - По кнопке «Выгрузить в Таблицу» в настройках.
+ * 5. Никаких поштучных очередей действий и гонок состояний.
  */
+
+import { validateGoogleSheetsUrl } from "shared";
+import { api } from "../api";
 
 const STORAGE_URL_KEY = "fullcup_gsheets_url";
 const STORAGE_LAST_SYNC_KEY = "fullcup_gsheets_last_synced";
-const STORAGE_QUEUE_KEY = "fullcup_gsheets_queue_v1";
-const DEBOUNCE_DELAY_MS = 1000;
+const STORAGE_DIRTY_KEY = "fullcup_gsheets_is_dirty";
 
-import { collapseQueueAction, validateGoogleSheetsUrl } from "shared";
-import { api } from "../api";
-
-class GoogleSheetsSyncEngine {
+class GoogleSheetsBackupService {
   constructor() {
     this.webhookUrl = this.loadUrl();
     this.lastSynced = this.loadLastSynced();
-    this.queue = this.loadQueue();
-    this.debounceTimer = null;
-    this.isFlushing = false;
+    this.isDirty = this.loadDirty();
+    this.isBackingUp = false;
     this.listeners = new Set();
     this.lastError = null;
     this.status = this.computeStatus();
 
-    // Если при старте остались неотправленные действия, планируем отправку
-    if (this.webhookUrl && this.queue.length > 0) {
-      this.scheduleFlush();
-    }
-
-    // Если URL не сохранен локально, пробуем получить URL из конфигурации сервера
+    // Загрузка URL из конфигурации сервера, если не задан локально
     if (!this.webhookUrl) {
       this.initCloudConfig();
     }
 
-    // Немедленная отправка очереди при сворачивании или закрытии страницы
+    // Автобэкап при завершении сессии (сворачивание/закрытие вкладки)
     if (typeof window !== "undefined" && window.addEventListener) {
       window.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "hidden" && this.queue.length > 0 && this.webhookUrl) {
-          this.syncAllNow();
+        if (
+          document.visibilityState === "hidden" &&
+          this.isDirty &&
+          this.webhookUrl &&
+          !this.isBackingUp
+        ) {
+          this.pushFullDatabase().catch((e) => console.warn("Фоновый автобэкап не удался:", e));
         }
       });
       window.addEventListener("beforeunload", () => {
-        if (this.queue.length > 0 && this.webhookUrl) {
-          this.syncAllNow();
+        if (this.isDirty && this.webhookUrl && !this.isBackingUp) {
+          this.pushFullDatabase().catch((e) => console.warn("Фоновый автобэкап не удался:", e));
         }
       });
     }
@@ -71,7 +69,7 @@ class GoogleSheetsSyncEngine {
   computeStatus() {
     if (!this.webhookUrl) return "not_configured";
     if (this.lastError) return "error";
-    if (this.queue.length > 0) return "saving";
+    if (this.isBackingUp) return "saving";
     if (!this.lastSynced) return "not_synced";
     return "idle";
   }
@@ -94,23 +92,30 @@ class GoogleSheetsSyncEngine {
     }
   }
 
-  loadQueue() {
+  loadDirty() {
     try {
-      if (typeof window === "undefined" || !window.localStorage) return [];
-      const raw = window.localStorage.getItem(STORAGE_QUEUE_KEY);
-      return raw ? JSON.parse(raw) : [];
+      if (typeof window === "undefined" || !window.localStorage) return false;
+      return window.localStorage.getItem(STORAGE_DIRTY_KEY) === "true";
     } catch {
-      return [];
+      return false;
     }
   }
 
-  saveQueue() {
+  setDirty(val) {
+    this.isDirty = Boolean(val);
     try {
-      if (typeof window === "undefined" || !window.localStorage) return;
-      window.localStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(this.queue));
-    } catch (err) {
-      console.warn("Не удалось сохранить очередь синхронизации в localStorage:", err);
+      if (typeof window !== "undefined" && window.localStorage) {
+        if (this.isDirty) {
+          window.localStorage.setItem(STORAGE_DIRTY_KEY, "true");
+        } else {
+          window.localStorage.removeItem(STORAGE_DIRTY_KEY);
+        }
+      }
+    } catch {
+      // ignore
     }
+    this.status = this.computeStatus();
+    this.notify();
   }
 
   validateUrl(url) {
@@ -143,9 +148,6 @@ class GoogleSheetsSyncEngine {
       } else {
         this.lastError = null;
         this.status = this.computeStatus();
-        if (this.queue.length > 0) {
-          this.scheduleFlush();
-        }
       }
     }
     this.notify();
@@ -164,7 +166,7 @@ class GoogleSheetsSyncEngine {
   }
 
   getPendingCount() {
-    return this.queue.length;
+    return this.isDirty ? 1 : 0;
   }
 
   getLastError() {
@@ -181,7 +183,7 @@ class GoogleSheetsSyncEngine {
   notify() {
     const snapshot = {
       status: this.status,
-      pendingCount: this.queue.length,
+      pendingCount: this.getPendingCount(),
       lastSynced: this.lastSynced,
       webhookUrl: this.webhookUrl,
       lastError: this.lastError,
@@ -196,132 +198,37 @@ class GoogleSheetsSyncEngine {
   }
 
   /**
-   * Добавление действия в очередь с дебаунсом и взаимным схлопыванием
-   * @param {Object} action - { type, id, data, ids }
+   * Отметка наличия новых несохраненных изменений
    */
-  enqueueAction(action) {
-    if (!action?.type) return;
-
-    // Алгоритм схлопывания отмен (Undo / Redo Cancellation)
-    const collapsed = this.tryCollapseAction(action);
-    if (!collapsed) {
-      this.queue.push(action);
-    }
-
-    this.saveQueue();
-
-    if (!this.webhookUrl) {
-      this.status = "not_configured";
-      this.notify();
-      return;
-    }
-
-    if (this.queue.length === 0) {
-      if (this.debounceTimer) {
-        clearTimeout(this.debounceTimer);
-        this.debounceTimer = null;
-      }
-      this.status = "idle";
-      this.notify();
-      return;
-    }
-
-    this.status = "saving";
-    this.notify();
-    this.scheduleFlush();
-  }
-
-  tryCollapseAction(newAct) {
-    return collapseQueueAction(this.queue, newAct);
-  }
-
-  scheduleFlush() {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-    }
-    this.debounceTimer = setTimeout(() => {
-      this.debounceTimer = null;
-      this.flushQueue();
-    }, DEBOUNCE_DELAY_MS);
+  markDirty() {
+    this.setDirty(true);
   }
 
   /**
-   * Отправка накопленных изменений в Google Таблицу
+   * Совместимость с вызовами в компонентах: добавление действия просто помечает снимок как dirty
    */
-  async flushQueue() {
-    if (this.isFlushing || this.queue.length === 0 || !this.webhookUrl) return;
-
-    this.isFlushing = true;
-    this.status = "saving";
-    this.lastError = null;
-    this.notify();
-
-    // Забираем срез очереди на отправку
-    const actionsToSend = [...this.queue];
-
-    try {
-      const resData = await api.postGoogleSheetsBatch(this.webhookUrl, actionsToSend);
-
-      if (resData?.success === false) {
-        throw new Error(resData.error || "Ошибка Google Таблицы");
-      }
-
-      // Успешно отправлено: удаляем из очереди отправленные действия
-      this.queue.splice(0, actionsToSend.length);
-      this.saveQueue();
-
-      this.lastSynced = new Date().toISOString();
-      try {
-        if (typeof window !== "undefined" && window.localStorage) {
-          window.localStorage.setItem(STORAGE_LAST_SYNC_KEY, this.lastSynced);
-        }
-      } catch {
-        // ignore
-      }
-
-      this.status = this.computeStatus();
-      this.lastError = null;
-      this.notify();
-
-      // Если за время отправки появились новые действия, перезапускаем отправку
-      if (this.queue.length > 0) {
-        this.scheduleFlush();
-      }
-    } catch (err) {
-      console.warn("Сбой синхронизации с Google Таблицей (очередь сохранена):", err);
-      this.status = "error";
-      this.lastError = err?.message || "Ошибка связи с Google Таблицей";
-      this.notify();
-      // Повторная попытка через 10 секунд
-      this.debounceTimer = setTimeout(() => {
-        this.debounceTimer = null;
-        this.flushQueue();
-      }, 10000);
-    } finally {
-      this.isFlushing = false;
-    }
+  enqueueAction(_action) {
+    this.markDirty();
   }
 
   /**
-   * Принудительная немедленная отправка очереди без ожидания дебаунса
+   * Принудительная синхронизация (алиас для pushFullDatabase)
    */
   async syncAllNow() {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
-    return this.flushQueue();
+    return this.pushFullDatabase();
   }
 
   /**
-   * Полная начальная перезапись Google Таблицы всеми локальными данными (Push All)
+   * Полная выгрузка базы данных в Google Таблицу (Push All)
    */
   async pushFullDatabase() {
     if (!this.webhookUrl) {
       throw new Error("URL вебхука Google Таблицы не настроен");
     }
 
+    this.isBackingUp = true;
     this.status = "saving";
+    this.lastError = null;
     this.notify();
 
     try {
@@ -330,10 +237,7 @@ class GoogleSheetsSyncEngine {
         throw new Error(resData.error || "Ошибка при записи в Google Таблицу");
       }
 
-      // После полной перезаписи очищаем текущую очередь изменений
-      this.queue = [];
-      this.saveQueue();
-
+      this.setDirty(false);
       this.lastSynced = new Date().toISOString();
       try {
         if (typeof window !== "undefined" && window.localStorage) {
@@ -349,21 +253,25 @@ class GoogleSheetsSyncEngine {
       return resData;
     } catch (err) {
       this.status = "error";
-      this.lastError = err?.message || "Ошибка при полной выгрузке";
+      this.lastError = err?.message || "Ошибка при выгрузке в Таблицу";
       this.notify();
       throw err;
+    } finally {
+      this.isBackingUp = false;
     }
   }
 
   /**
-   * Чтение всех таблиц из Google Таблицы (Pull All)
+   * Чтение всех данных из Google Таблицы (Pull All)
    */
   async pullFromSheets() {
     if (!this.webhookUrl) {
       throw new Error("URL вебхука Google Таблицы не настроен");
     }
 
+    this.isBackingUp = true;
     this.status = "saving";
+    this.lastError = null;
     this.notify();
 
     try {
@@ -372,6 +280,7 @@ class GoogleSheetsSyncEngine {
         throw new Error(resData.error || "Ошибка при чтении из Google Таблицы");
       }
 
+      this.setDirty(false);
       this.lastSynced = new Date().toISOString();
       try {
         if (typeof window !== "undefined" && window.localStorage) {
@@ -390,6 +299,8 @@ class GoogleSheetsSyncEngine {
       this.lastError = err?.message || "Ошибка при чтении из Google Таблицы";
       this.notify();
       throw err;
+    } finally {
+      this.isBackingUp = false;
     }
   }
 
@@ -416,4 +327,4 @@ class GoogleSheetsSyncEngine {
   }
 }
 
-export const googleSheetsSync = new GoogleSheetsSyncEngine();
+export const googleSheetsSync = new GoogleSheetsBackupService();

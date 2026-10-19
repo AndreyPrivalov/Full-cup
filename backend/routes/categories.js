@@ -8,8 +8,8 @@ const router = express.Router();
 // GET /api/categories
 router.get(
   "/",
-  apiHandler((_req, res) => {
-    const data = db.select().from(categories).orderBy(categories.id).all();
+  apiHandler(async (_req, res) => {
+    const data = await db.select().from(categories).orderBy(categories.id);
     res.json(data);
   }),
 );

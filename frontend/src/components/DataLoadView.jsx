@@ -313,9 +313,9 @@ export function DataLoadView() {
   };
 
   let syncStatusLabel = "Не настроен";
-  if (syncStatus === "idle") syncStatusLabel = "Синхронизировано";
-  if (syncStatus === "not_synced") syncStatusLabel = "Требуется выгрузка";
-  if (syncStatus === "saving") syncStatusLabel = "Отправка...";
+  if (syncStatus === "idle") syncStatusLabel = "Бэкап актуален";
+  if (syncStatus === "not_synced") syncStatusLabel = "Требуется начальный бэкап";
+  if (syncStatus === "saving") syncStatusLabel = "Сохранение бэкапа...";
   if (syncStatus === "error") syncStatusLabel = "Ошибка связи";
 
   return (
@@ -477,14 +477,14 @@ export function DataLoadView() {
               </div>
 
               <div className="a-flex a-justify-between a-items-center">
-                <span className="a-text-s a-clr-text-secondary">В очереди:</span>
+                <span className="a-text-s a-clr-text-secondary">Несохраненных изменений:</span>
                 <span className="a-text-s a-clr-text-primary">
-                  {pendingCount > 0 ? `${pendingCount} действий` : "0"}
+                  {pendingCount > 0 ? "Есть изменения" : "Нет"}
                 </span>
               </div>
 
               <div className="a-flex a-justify-between a-items-center">
-                <span className="a-text-s a-clr-text-secondary">Синхронизировано:</span>
+                <span className="a-text-s a-clr-text-secondary">Последний бэкап:</span>
                 <span className="a-text-s a-clr-text-primary">
                   {lastSynced ? new Date(lastSynced).toLocaleString("ru-RU") : "—"}
                 </span>

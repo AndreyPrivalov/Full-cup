@@ -10,8 +10,8 @@ const router = express.Router();
 // GET /api/savings
 router.get(
   "/",
-  apiHandler((_req, res) => {
-    const data = db.select().from(savings).orderBy(savings.date).all();
+  apiHandler(async (_req, res) => {
+    const data = await db.select().from(savings).orderBy(savings.date);
 
     // Calculate dynamics
     const result = data.map((item, index) => {
@@ -41,7 +41,7 @@ router.get(
 // POST /api/savings
 router.post(
   "/",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     let newDate = req.body.date;
     const newCash = req.body.cash ? Number(req.body.cash) : 0;
     const newElectronic = req.body.electronic ? Number(req.body.electronic) : 0;
@@ -53,7 +53,7 @@ router.post(
 
     if (!newDate) {
       // Find the last record
-      const lastRecord = db.select().from(savings).orderBy(desc(savings.date)).limit(1).get();
+      const [lastRecord] = await db.select().from(savings).orderBy(desc(savings.date)).limit(1);
       if (lastRecord) {
         const dateObj = new Date(lastRecord.date);
         dateObj.setDate(1);
@@ -73,10 +73,10 @@ router.post(
       debts: newDebts,
     });
 
-    const info = db.insert(savings).values(validatedData).run();
+    const info = await db.insert(savings).values(validatedData);
 
     res.status(201).json({
-      id: info.lastInsertRowid,
+      id: Number(info.lastInsertRowid),
       ...validatedData,
     });
   }),
@@ -85,9 +85,9 @@ router.post(
 // PUT /api/savings/:id
 router.put(
   "/:id",
-  apiHandler((req, res) => {
+  apiHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const existing = db.select().from(savings).where(eq(savings.id, id)).get();
+    const [existing] = await db.select().from(savings).where(eq(savings.id, id));
     if (!existing) {
       return res.status(404).json({ error: "Record not found" });
     }
@@ -111,7 +111,7 @@ router.put(
       debts: parsedDebts,
     });
 
-    db.update(savings).set(validatedData).where(eq(savings.id, id)).run();
+    await db.update(savings).set(validatedData).where(eq(savings.id, id));
 
     res.json({ id, ...validatedData });
   }),

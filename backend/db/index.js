@@ -1,29 +1,23 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "shared/schema.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const defaultDbPath = process.env.VERCEL
-  ? path.join("/tmp", "fullcup.db")
-  : path.join(__dirname, "fullcup.db");
-export const DB_PATH = process.env.DB_PATH || defaultDbPath;
+export const DB_PATH = process.env.DB_PATH || path.join(__dirname, "fullcup.db");
 
-const sqlite = new Database(DB_PATH);
-sqlite.pragma("foreign_keys = ON");
+export const isTurso = Boolean(process.env.TURSO_DATABASE_URL);
 
-if (process.env.VERCEL) {
-  sqlite.pragma("journal_mode = MEMORY");
-  sqlite.pragma("synchronous = OFF");
-  sqlite.pragma("temp_store = MEMORY");
-  sqlite.pragma("cache_size = -16000");
-} else {
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("synchronous = NORMAL");
-  sqlite.pragma("cache_size = -64000");
-  sqlite.pragma("temp_store = MEMORY");
-  sqlite.pragma("mmap_size = 30000000000");
-}
+export const client = createClient(
+  isTurso
+    ? {
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      }
+    : {
+        url: `file:${DB_PATH}`,
+      },
+);
 
-export const db = drizzle(sqlite, { schema });
+export const db = drizzle(client, { schema });

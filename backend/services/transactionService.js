@@ -28,13 +28,13 @@ export function normalizeBankIds(body) {
  * Batched retrieval of linked banks for a set of transaction IDs.
  * Chunked by 500 to stay well within SQLite parameter limits.
  */
-export function getTransactionBanksForIds(txIds, executor = db) {
+export async function getTransactionBanksForIds(txIds, executor = db) {
   if (!txIds || txIds.length === 0) return [];
   const results = [];
   const chunkSize = 500;
   for (let i = 0; i < txIds.length; i += chunkSize) {
     const chunk = txIds.slice(i, i + chunkSize);
-    const rows = executor
+    const rows = await executor
       .select({
         transaction_id: transactionBanks.transaction_id,
         bank_id: transactionBanks.bank_id,
@@ -43,8 +43,7 @@ export function getTransactionBanksForIds(txIds, executor = db) {
       })
       .from(transactionBanks)
       .innerJoin(banks, eq(transactionBanks.bank_id, banks.id))
-      .where(inArray(transactionBanks.transaction_id, chunk))
-      .all();
+      .where(inArray(transactionBanks.transaction_id, chunk));
     results.push(...rows);
   }
   return results;
@@ -53,10 +52,10 @@ export function getTransactionBanksForIds(txIds, executor = db) {
 /**
  * Enriches a list of raw transaction records with linked banks, bank names, and amounts.
  */
-export function enrichTransactionsWithBanks(txList, executor = db) {
+export async function enrichTransactionsWithBanks(txList, executor = db) {
   if (!txList || txList.length === 0) return [];
   const txIds = txList.map((t) => t.id);
-  const tbRows = getTransactionBanksForIds(txIds, executor);
+  const tbRows = await getTransactionBanksForIds(txIds, executor);
 
   const tbMap = new Map();
   for (const row of tbRows) {
@@ -125,7 +124,7 @@ export function buildTransactionBaseQuery(executor = db) {
 /**
  * Fetches and enriches transactions based on filter conditions, pagination, and sorting.
  */
-export function fetchEnrichedTransactions(conditions = [], options = {}, executor = db) {
+export async function fetchEnrichedTransactions(conditions = [], options = {}, executor = db) {
   let query = buildTransactionBaseQuery(executor);
 
   if (conditions.length > 0) {
@@ -141,34 +140,32 @@ export function fetchEnrichedTransactions(conditions = [], options = {}, executo
     }
   }
 
-  const rawRows = query.all();
+  const rawRows = await query;
   return enrichTransactionsWithBanks(rawRows, executor);
 }
 
 /**
  * Fetches a single enriched transaction by ID.
  */
-export function fetchEnrichedTransactionById(id, executor = db) {
-  const list = fetchEnrichedTransactions([eq(transactions.id, id)], { limit: 1 }, executor);
+export async function fetchEnrichedTransactionById(id, executor = db) {
+  const list = await fetchEnrichedTransactions([eq(transactions.id, id)], { limit: 1 }, executor);
   return list[0] || null;
 }
 
 /**
  * Replaces linked banks in transaction_banks for a transaction.
  */
-export function syncTransactionBanks(tx, transactionId, bankIds, bankAmount) {
-  tx.delete(transactionBanks).where(eq(transactionBanks.transaction_id, transactionId)).run();
+export async function syncTransactionBanks(tx, transactionId, bankIds, bankAmount) {
+  await tx.delete(transactionBanks).where(eq(transactionBanks.transaction_id, transactionId));
 
   if (bankIds.length > 0 && bankAmount && bankAmount > 0) {
     const shares = splitBankAmount(bankAmount, bankIds.length);
     for (let i = 0; i < bankIds.length; i++) {
-      tx.insert(transactionBanks)
-        .values({
-          transaction_id: transactionId,
-          bank_id: bankIds[i],
-          amount: shares[i],
-        })
-        .run();
+      await tx.insert(transactionBanks).values({
+        transaction_id: transactionId,
+        bank_id: bankIds[i],
+        amount: shares[i],
+      });
     }
   }
 }
