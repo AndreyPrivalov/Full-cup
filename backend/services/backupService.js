@@ -154,10 +154,16 @@ export async function importRows(tx, tableName, rows, mode = "replace") {
       const cash = Number.parseFloat(row.cash) || 0;
       const electronic = Number.parseFloat(row.electronic) || 0;
       const global_projects = Number.parseFloat(row.global_projects) || 0;
-      const debts =
-        row.debts !== undefined && row.debts !== "" && row.debts !== "null"
-          ? Number.parseFloat(row.debts)
-          : null;
+      let debts = null;
+      if (
+        row.debts !== undefined &&
+        row.debts !== null &&
+        row.debts !== "" &&
+        row.debts !== "null"
+      ) {
+        const parsed = Number.parseFloat(row.debts);
+        debts = Number.isFinite(parsed) ? parsed : null;
+      }
 
       const item = { date, cash, electronic, global_projects, debts };
       if (row.id) {
@@ -185,6 +191,88 @@ export async function importRows(tx, tableName, rows, mode = "replace") {
       bankMap.set(b.name, b.id);
     }
 
+    // Pre-create any missing categories
+    for (const row of rows) {
+      if (row.category_name && row.type) {
+        const type = row.type === "income" ? "income" : "expense";
+        const catKey = `${row.category_name.trim()}:${type}`;
+        if (!catMap.has(catKey)) {
+          const info = await tx.insert(categories).values({
+            name: row.category_name.trim(),
+            type,
+          });
+          catMap.set(catKey, Number(info.lastInsertRowid));
+        }
+      }
+    }
+
+    const hasIds = rows.length > 0 && rows.every((r) => r.id);
+    if (hasIds) {
+      const txBatch = [];
+      const tbBatch = [];
+      for (const row of rows) {
+        if (!row.date || row.amount === undefined || row.amount === "") continue;
+        const amount = Number.parseFloat(row.amount);
+        if (Number.isNaN(amount) || amount < 0) continue;
+        const type = row.type === "income" ? "income" : "expense";
+        const date = getLocalDateString(row.date);
+        const comment = row.comment ? row.comment.trim() : null;
+        const txId = Number.parseInt(row.id, 10);
+
+        let categoryId = null;
+        if (row.category_name) {
+          categoryId = catMap.get(`${row.category_name.trim()}:${type}`) || null;
+        } else if (row.category_id) {
+          categoryId = Number.parseInt(row.category_id, 10) || null;
+        }
+
+        let bankId = null;
+        if (row.bank_name) {
+          bankId = bankMap.get(row.bank_name.trim()) || null;
+        } else if (row.bank_id) {
+          bankId = Number.parseInt(row.bank_id, 10) || null;
+        }
+
+        let bankAmount = null;
+        if (
+          row.bank_amount !== undefined &&
+          row.bank_amount !== null &&
+          row.bank_amount !== "" &&
+          row.bank_amount !== "null"
+        ) {
+          const parsed = Number.parseFloat(row.bank_amount);
+          bankAmount = Number.isFinite(parsed) ? parsed : null;
+        } else if (bankId) {
+          bankAmount = amount;
+        }
+
+        txBatch.push({
+          id: txId,
+          amount,
+          type,
+          category_id: categoryId,
+          bank_id: bankId,
+          bank_amount: bankAmount,
+          date,
+          comment,
+        });
+
+        if (bankId) {
+          tbBatch.push({
+            transaction_id: txId,
+            bank_id: bankId,
+            amount: bankAmount ?? amount,
+          });
+        }
+      }
+
+      await batchInsert(tx, transactions, txBatch);
+      if (tbBatch.length > 0) {
+        await batchInsert(tx, transactionBanks, tbBatch);
+      }
+      return txBatch.length;
+    }
+
     let inserted = 0;
     for (const row of rows) {
       if (!row.date || row.amount === undefined || row.amount === "") continue;
@@ -196,34 +284,27 @@ export async function importRows(tx, tableName, rows, mode = "replace") {
 
       let categoryId = null;
       if (row.category_name) {
-        const catKey = `${row.category_name.trim()}:${type}`;
-        if (catMap.has(catKey)) {
-          categoryId = catMap.get(catKey);
-        } else {
-          const info = await tx.insert(categories).values({
-            name: row.category_name.trim(),
-            type,
-          });
-          categoryId = Number(info.lastInsertRowid);
-          catMap.set(catKey, categoryId);
-        }
+        categoryId = catMap.get(`${row.category_name.trim()}:${type}`) || null;
       } else if (row.category_id) {
         categoryId = Number.parseInt(row.category_id, 10) || null;
       }
 
       let bankId = null;
       if (row.bank_name) {
-        const bankName = row.bank_name.trim();
-        if (bankMap.has(bankName)) {
-          bankId = bankMap.get(bankName);
-        }
+        bankId = bankMap.get(row.bank_name.trim()) || null;
       } else if (row.bank_id) {
         bankId = Number.parseInt(row.bank_id, 10) || null;
       }
 
       let bankAmount = null;
-      if (row.bank_amount !== undefined && row.bank_amount !== "" && row.bank_amount !== "null") {
-        bankAmount = Number.parseFloat(row.bank_amount);
+      if (
+        row.bank_amount !== undefined &&
+        row.bank_amount !== null &&
+        row.bank_amount !== "" &&
+        row.bank_amount !== "null"
+      ) {
+        const parsed = Number.parseFloat(row.bank_amount);
+        bankAmount = Number.isFinite(parsed) ? parsed : null;
       } else if (bankId) {
         bankAmount = amount;
       }
