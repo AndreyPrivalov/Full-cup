@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: fullcup-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run start:backend
+    envVars:
+      - key: NODE_VERSION
+        value: 22

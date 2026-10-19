@@ -11,6 +11,9 @@
     "backup:import": "node scripts/backup_csv.js import",
     "gsheets:push": "node scripts/sync_google_sheets.js push",
     "gsheets:pull": "node scripts/sync_google_sheets.js pull",
+    "build": "npm --workspace=frontend run build",
+    "build:frontend": "npm --workspace=frontend run build",
+    "start:backend": "cd backend && node index.js",
     "check": "biome check .",
     "check:fix": "biome check --write ."
   },

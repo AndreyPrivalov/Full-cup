@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+.git
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+backups
+.gemini
+.vscode
+.idea

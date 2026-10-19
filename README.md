@@ -67,6 +67,25 @@ npm run gsheets:pull <WEBHOOK_URL>
 
 ---
 
+## 🌐 Развертывание в продакшн (Vercel & Cloud)
+
+### 1. Фронтенд на Vercel
+Фронтенд готов к деплою на Vercel из коробки:
+1. Импортируйте репозиторий в дашборде [Vercel](https://vercel.com).
+2. Настройки сборки подхватятся автоматически из [`vercel.json`](file:///vercel.json):
+   - **Framework Preset:** Vite
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `frontend/dist`
+3. В разделе **Settings → Environment Variables** укажите:
+   - `VITE_API_URL` — публичный URL вашего бэкенда (например, `https://fullcup-api.onrender.com/api`).
+
+### 2. Бэкенд с постоянным диском (Render / Railway / VPS / Docker)
+Поскольку база данных SQLite хранится локально на диске, бэкенд развертывается на платформах с постоянным диском (Zero Data Loss):
+- **Render:** Создайте Web Service из репозитория (манифест [`render.yaml`](file:///render.yaml)). Привяжите Persistent Disk и укажите переменную `DB_PATH=/data/fullcup.db`.
+- **Docker / VPS / Railway:** Используйте готовый [`Dockerfile`](file:///Dockerfile) с монтированием тома для базы данных.
+
+---
+
 ## 📚 Спецификации и Документация
 
 - [**PROJECT_STACK.md**](file:///PROJECT_STACK.md) — Полное описание архитектуры (monorepo, SQLite WAL, Drizzle, Zod, TanStack Query, сетевые порты).

@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import { DEFAULT_CATEGORIES } from "./defaultCategories.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, "fullcup.db");
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, "fullcup.db");
 
 export function runMigrations(customDbPath = DB_PATH) {
   console.log("Checking database schema updates...");
