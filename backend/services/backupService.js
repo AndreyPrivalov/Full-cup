@@ -9,6 +9,7 @@ import {
   transactionBanks,
   transactions,
 } from "shared";
+import { DEFAULT_CATEGORIES } from "../db/defaultCategories.js";
 import { DB_PATH, db } from "../db/index.js";
 import { parseCsv } from "../utils/csv.js";
 
@@ -328,6 +329,12 @@ export function restoreAllDataset(tx, dataset, mode = "replace") {
       dataset.transaction_banks,
       "append",
     );
+  }
+
+  // Ensure default categories are present if categories table is empty
+  const [catCheck] = tx.select({ count: count() }).from(categories).all();
+  if (!catCheck || catCheck.count === 0) {
+    results.categories = importRows(tx, "categories", DEFAULT_CATEGORIES, "append");
   }
 
   return results;

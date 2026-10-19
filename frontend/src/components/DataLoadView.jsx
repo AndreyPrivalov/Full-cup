@@ -149,6 +149,23 @@ export function DataLoadView() {
 
     try {
       const res = await pullFromSheets();
+
+      if (res?.data) {
+        if (Array.isArray(res.data.categories)) {
+          queryClient.setQueryData(["categories"], res.data.categories);
+        }
+        if (Array.isArray(res.data.banks)) {
+          queryClient.setQueryData(["banks"], res.data.banks);
+        }
+        if (Array.isArray(res.data.savings)) {
+          queryClient.setQueryData(["savings"], res.data.savings);
+        }
+        if (Array.isArray(res.data.transactions)) {
+          queryClient.setQueryData(["operations"], res.data.transactions);
+          queryClient.setQueryData(["transactions", "recent"], res.data.transactions.slice(0, 10));
+        }
+      }
+
       invalidateTransactionCaches(queryClient);
       queryClient.invalidateQueries();
       refetchStats();

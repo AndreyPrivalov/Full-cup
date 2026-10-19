@@ -12,6 +12,32 @@ const getApiBaseUrl = () => {
 
 const API_URL = getApiBaseUrl();
 
+const getCommonHeaders = () => {
+  const headers = {};
+  if (typeof window !== "undefined" && window.localStorage) {
+    const webhookUrl = window.localStorage.getItem("fullcup_gsheets_url");
+    if (webhookUrl) {
+      headers["x-gsheets-url"] = webhookUrl.trim();
+    }
+    const lastSynced = window.localStorage.getItem("fullcup_gsheets_last_synced");
+    if (lastSynced) {
+      headers["x-gsheets-last-synced"] = lastSynced;
+    }
+  }
+  return headers;
+};
+
+const apiFetch = (url, options = {}) => {
+  const commonHeaders = getCommonHeaders();
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...commonHeaders,
+      ...(options.headers || {}),
+    },
+  });
+};
+
 const handleResponse = async (response) => {
   if (!response.ok) {
     const errorText = await response.text();
@@ -31,28 +57,28 @@ export const api = {
   // Дашборд
   getDashboard: (controlPeriod) => {
     const query = controlPeriod ? `?control_period=${controlPeriod}` : "";
-    return fetch(`${API_URL}/dashboard${query}`).then(handleResponse);
+    return apiFetch(`${API_URL}/dashboard${query}`).then(handleResponse);
   },
 
   // Категории
-  getCategories: () => fetch(`${API_URL}/categories`).then(handleResponse),
+  getCategories: () => apiFetch(`${API_URL}/categories`).then(handleResponse),
 
   // Банки
-  getBanks: () => fetch(`${API_URL}/banks`).then(handleResponse),
+  getBanks: () => apiFetch(`${API_URL}/banks`).then(handleResponse),
   addBank: (data) =>
-    fetch(`${API_URL}/banks`, {
+    apiFetch(`${API_URL}/banks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(handleResponse),
   updateBank: (id, data) =>
-    fetch(`${API_URL}/banks/${id}`, {
+    apiFetch(`${API_URL}/banks/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(handleResponse),
   deleteBank: (id) =>
-    fetch(`${API_URL}/banks/${id}`, {
+    apiFetch(`${API_URL}/banks/${id}`, {
       method: "DELETE",
     }).then((res) => {
       if (!res.ok) throw new Error("Ошибка при удалении банка");
@@ -68,40 +94,40 @@ export const api = {
       }
     }
     const qs = query.toString();
-    return fetch(`${API_URL}/transactions${qs ? `?${qs}` : ""}`).then(handleResponse);
+    return apiFetch(`${API_URL}/transactions${qs ? `?${qs}` : ""}`).then(handleResponse);
   },
   getRecentOperations: (limit = 10, type) => {
-    return fetch(
+    return apiFetch(
       `${API_URL}/transactions/recent?limit=${limit}${type ? `&type=${type}` : ""}`,
     ).then(handleResponse);
   },
   addOperation: (data) =>
-    fetch(`${API_URL}/transactions`, {
+    apiFetch(`${API_URL}/transactions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(handleResponse),
   deleteOperation: (id) =>
-    fetch(`${API_URL}/transactions/${id}`, {
+    apiFetch(`${API_URL}/transactions/${id}`, {
       method: "DELETE",
     }).then((res) => {
       if (!res.ok) throw new Error("Ошибка при удалении операции");
       return null;
     }),
   updateOperation: (id, data) =>
-    fetch(`${API_URL}/transactions/${id}`, {
+    apiFetch(`${API_URL}/transactions/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(handleResponse),
   batchUpdateOperations: (ids, data) =>
-    fetch(`${API_URL}/transactions/batch`, {
+    apiFetch(`${API_URL}/transactions/batch`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids, data }),
     }).then(handleResponse),
   batchDeleteOperations: (ids) =>
-    fetch(`${API_URL}/transactions/batch`, {
+    apiFetch(`${API_URL}/transactions/batch`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids }),
@@ -111,59 +137,59 @@ export const api = {
     }),
 
   // Накопления
-  getSavings: () => fetch(`${API_URL}/savings`).then(handleResponse),
+  getSavings: () => apiFetch(`${API_URL}/savings`).then(handleResponse),
   addSaving: (data) =>
-    fetch(`${API_URL}/savings`, {
+    apiFetch(`${API_URL}/savings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(handleResponse),
   updateSaving: (id, data) =>
-    fetch(`${API_URL}/savings/${id}`, {
+    apiFetch(`${API_URL}/savings/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(handleResponse),
 
   // Бэкап и Восстановление
-  getBackupStats: () => fetch(`${API_URL}/backup/stats`).then(handleResponse),
+  getBackupStats: () => apiFetch(`${API_URL}/backup/stats`).then(handleResponse),
   getExportTableUrl: (table) => `${API_URL}/backup/export/${table}`,
   importTableCsv: (table, csvText, mode = "replace") =>
-    fetch(`${API_URL}/backup/import/${table}?mode=${mode}`, {
+    apiFetch(`${API_URL}/backup/import/${table}?mode=${mode}`, {
       method: "POST",
       headers: { "Content-Type": "text/csv; charset=utf-8" },
       body: csvText,
     }).then(handleResponse),
 
   // Синхронизация с Google Таблицами
-  getGoogleSheetsConfig: () => fetch(`${API_URL}/backup/gsheets-config`).then(handleResponse),
-  getSheetsBundle: () => fetch(`${API_URL}/backup/sheets-bundle`).then(handleResponse),
+  getGoogleSheetsConfig: () => apiFetch(`${API_URL}/backup/gsheets-config`).then(handleResponse),
+  getSheetsBundle: () => apiFetch(`${API_URL}/backup/sheets-bundle`).then(handleResponse),
   restoreFromSheets: (data) =>
-    fetch(`${API_URL}/backup/sheets-restore`, {
+    apiFetch(`${API_URL}/backup/sheets-restore`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(handleResponse),
   testGoogleSheets: (url) =>
-    fetch(`${API_URL}/backup/google-sheets/test`, {
+    apiFetch(`${API_URL}/backup/google-sheets/test`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
     }).then(handleResponse),
   postGoogleSheetsBatch: (url, actions) =>
-    fetch(`${API_URL}/backup/google-sheets/batch`, {
+    apiFetch(`${API_URL}/backup/google-sheets/batch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, actions }),
     }).then(handleResponse),
   pushGoogleSheetsFull: (url) =>
-    fetch(`${API_URL}/backup/google-sheets/push`, {
+    apiFetch(`${API_URL}/backup/google-sheets/push`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
     }).then(handleResponse),
   pullGoogleSheetsFull: (url) =>
-    fetch(`${API_URL}/backup/google-sheets/pull`, {
+    apiFetch(`${API_URL}/backup/google-sheets/pull`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),

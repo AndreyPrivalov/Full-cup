@@ -1,5 +1,8 @@
 import cors from "cors";
+import { count } from "drizzle-orm";
 import express from "express";
+import { transactions } from "shared";
+import { db } from "./db/index.js";
 import { runMigrations } from "./db/migrate.js";
 import backupRouter, { autoHydrateFromGoogleSheets } from "./routes/backup.js";
 import banksRouter from "./routes/banks.js";
@@ -10,25 +13,54 @@ import transactionsRouter from "./routes/transactions.js";
 
 let isReady = false;
 let initPromise = null;
+let lastSyncedVersion = null;
+let lastHydrateAttempt = 0;
 
-export async function ensureDatabaseReady() {
-  if (isReady) return;
-  if (!initPromise) {
-    initPromise = (async () => {
-      try {
-        runMigrations();
-        if (process.env.GOOGLE_SHEETS_WEBHOOK_URL) {
-          await autoHydrateFromGoogleSheets();
+export async function ensureDatabaseReady(clientUrl = null, clientLastSynced = null) {
+  const webhookUrl = clientUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+
+  // 1. Initial migrations on cold container start
+  if (!isReady) {
+    if (!initPromise) {
+      initPromise = (async () => {
+        try {
+          runMigrations();
+          if (webhookUrl) {
+            const data = await autoHydrateFromGoogleSheets(webhookUrl);
+            lastSyncedVersion = clientLastSynced || data?.timestamp || new Date().toISOString();
+            lastHydrateAttempt = Date.now();
+          }
+          isReady = true;
+        } catch (err) {
+          console.error("Database readiness error:", err);
+          initPromise = null;
+          throw err;
         }
-        isReady = true;
-      } catch (err) {
-        console.error("Database readiness error:", err);
-        initPromise = null;
-        throw err;
-      }
-    })();
+      })();
+    }
+    await initPromise;
   }
-  return initPromise;
+
+  // 2. Dynamic multi-container sync check:
+  // If this container is running, but has an empty DB or client has a newer sync version
+  if (webhookUrl) {
+    const [txCount] = db.select({ count: count() }).from(transactions).all();
+    const isEmpty = !txCount || txCount.count === 0;
+    const isStale = Boolean(
+      clientLastSynced && lastSyncedVersion && clientLastSynced > lastSyncedVersion,
+    );
+    const now = Date.now();
+
+    if ((isEmpty && now - lastHydrateAttempt > 5000) || isStale) {
+      lastHydrateAttempt = now;
+      try {
+        const data = await autoHydrateFromGoogleSheets(webhookUrl, isStale);
+        lastSyncedVersion = clientLastSynced || data?.timestamp || new Date().toISOString();
+      } catch (err) {
+        console.warn("Dynamic re-hydration error:", err.message);
+      }
+    }
+  }
 }
 
 if (!process.env.VERCEL) {
@@ -46,9 +78,11 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.text({ type: ["text/csv", "text/plain"], limit: "50mb" }));
 
 // Ensure database schema and Google Sheets data are ready before answering any request
-app.use(async (_req, _res, next) => {
+app.use(async (req, _res, next) => {
   try {
-    await ensureDatabaseReady();
+    const clientUrl = req.headers["x-gsheets-url"];
+    const clientLastSynced = req.headers["x-gsheets-last-synced"];
+    await ensureDatabaseReady(clientUrl, clientLastSynced);
     next();
   } catch (err) {
     next(err);

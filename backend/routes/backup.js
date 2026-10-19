@@ -332,33 +332,29 @@ router.get(
   }),
 );
 
-let hasAttemptedHydration = false;
-
 /**
- * Auto-hydrates database from Google Sheets on startup if DB is empty and URL is configured.
+ * Auto-hydrates database from Google Sheets if DB is empty or when forced.
  */
 export async function autoHydrateFromGoogleSheets(
   webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL,
+  force = false,
 ) {
-  if (hasAttemptedHydration) return;
-  if (!webhookUrl) return;
+  if (!webhookUrl) return null;
   const check = validateGoogleSheetsUrl(webhookUrl);
   if (!check.valid) {
-    console.warn("Invalid GOOGLE_SHEETS_WEBHOOK_URL format:", check.error);
-    return;
+    console.warn("Invalid Google Sheets webhook URL format:", check.error);
+    return null;
   }
 
-  hasAttemptedHydration = true;
-
-  try {
+  if (!force) {
     const [txCount] = db.select({ count: count() }).from(transactions).all();
     if (txCount && txCount.count > 0) {
-      return;
+      return null;
     }
+  }
 
-    console.log(
-      "Empty database detected with GOOGLE_SHEETS_WEBHOOK_URL set. Auto-pulling dataset...",
-    );
+  try {
+    console.log("Hydrating database from Google Sheets:", check.url);
     const separator = check.url.includes("?") ? "&" : "?";
     const pullUrl = `${check.url}${separator}action=pull`;
     const response = await fetch(pullUrl, {
@@ -370,25 +366,31 @@ export async function autoHydrateFromGoogleSheets(
 
     if (!response.ok || response.url.includes("accounts.google.com")) {
       console.warn("Auto-hydrate HTTP failed:", formatGoogleSheetsHttpError(response));
-      return;
+      return null;
     }
 
-    const json = await response.json().catch((err) => {
-      console.warn("Auto-hydrate JSON parse error:", err.message);
+    const rawText = await response.text();
+    let json = null;
+    try {
+      json = JSON.parse(rawText);
+    } catch {
+      console.warn("Auto-hydrate JSON parse error, text length:", rawText.length);
       return null;
-    });
+    }
 
     if (!json?.success || !json?.data) {
       console.warn("Auto-hydrate received invalid data payload:", json);
-      return;
+      return null;
     }
 
     db.transaction((tx) => {
       restoreAllDataset(tx, json.data, "replace");
     });
     console.log("Auto-hydrate from Google Sheets completed successfully!");
+    return json.data;
   } catch (err) {
     console.warn("Auto-hydrate from Google Sheets failed:", err.message);
+    return null;
   }
 }
 
@@ -616,6 +618,7 @@ router.post(
       res.json({
         success: true,
         counts: results,
+        data: json.data,
       });
     } catch (err) {
       rollbackSafetySnapshot("replace", err);

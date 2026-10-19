@@ -71,6 +71,10 @@ export function useAddOperation() {
       }
 
       if (result?.id) {
+        queryClient.setQueryData(["operations"], (old = []) => {
+          return old.map((op) => (String(op.id).startsWith("temp-") ? result : op));
+        });
+
         googleSheetsSync.enqueueAction({
           type: "ADD_TRANSACTION",
           data: {
