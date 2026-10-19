@@ -1,6 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createClient } from "@libsql/client";
+import { createClient as createWebClient } from "@libsql/client/web";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "shared/schema.js";
 
@@ -28,15 +28,20 @@ if (process.env.VERCEL && !isTurso) {
   );
 }
 
-export const client = createClient(
-  isTurso
-    ? {
-        url: tursoUrl,
-        authToken: tursoToken,
-      }
-    : {
-        url: `file:${DB_PATH}`,
-      },
-);
+let client;
+if (isTurso) {
+  // Pure JavaScript HTTP client: 100% serverless compatible with ZERO native binary addons
+  client = createWebClient({
+    url: tursoUrl,
+    authToken: tursoToken,
+  });
+} else {
+  // Local development file fallback: loads Node client only when running locally with a local SQLite file
+  const { createClient: createNodeClient } = await import("@libsql/client");
+  client = createNodeClient({
+    url: `file:${DB_PATH}`,
+  });
+}
 
+export { client };
 export const db = drizzle(client, { schema });
