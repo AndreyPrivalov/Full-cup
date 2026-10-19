@@ -28,7 +28,9 @@ export async function ensureDatabaseReady() {
   await initPromise;
 }
 
-if (!process.env.VERCEL) {
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+if (!isServerless) {
   ensureDatabaseReady().catch((err) => {
     console.error("Initial migration error:", err);
   });
@@ -139,7 +141,7 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // --- Запуск сервера ---
-if (!process.env.VERCEL) {
+if (!isServerless) {
   app.listen(PORT, () => {
     console.log(`🚀 Сервер запущен: http://localhost:${PORT}`);
   });
