@@ -5,10 +5,6 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
-      "source": "/api/test",
-      "destination": "/api/test"
-    },
-    {
       "source": "/api/(.*)",
       "destination": "/api"
     },
