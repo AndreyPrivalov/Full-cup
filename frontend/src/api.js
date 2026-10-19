@@ -136,6 +136,7 @@ export const api = {
     }).then(handleResponse),
 
   // Синхронизация с Google Таблицами
+  getGoogleSheetsConfig: () => fetch(`${API_URL}/backup/gsheets-config`).then(handleResponse),
   getSheetsBundle: () => fetch(`${API_URL}/backup/sheets-bundle`).then(handleResponse),
   restoreFromSheets: (data) =>
     fetch(`${API_URL}/backup/sheets-restore`, {

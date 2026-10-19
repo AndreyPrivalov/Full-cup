@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import express from "express";
 import {
   banks,
@@ -320,6 +320,63 @@ function formatGoogleSheetsHttpError(response) {
     return "Веб-приложение не найдено (HTTP 404). Проверьте правильность скопированного URL развертывания.";
   }
   return `Google Таблица вернула HTTP ${response.status}: ${response.statusText || "Ошибка"}`;
+}
+
+// GET /api/backup/gsheets-config - Returns webhook URL from server environment if configured
+router.get(
+  "/gsheets-config",
+  apiHandler((_req, res) => {
+    res.json({
+      webhookUrl: process.env.GOOGLE_SHEETS_WEBHOOK_URL || null,
+    });
+  }),
+);
+
+/**
+ * Auto-hydrates database from Google Sheets on startup if DB is empty and URL is configured.
+ */
+export async function autoHydrateFromGoogleSheets(
+  webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL,
+) {
+  if (!webhookUrl) return;
+  const check = validateGoogleSheetsUrl(webhookUrl);
+  if (!check.valid) return;
+
+  try {
+    const [txCount] = db.select({ count: count() }).from(transactions).all();
+    if (txCount && txCount.count > 0) {
+      return;
+    }
+
+    console.log(
+      "Empty database detected with GOOGLE_SHEETS_WEBHOOK_URL set. Auto-pulling dataset...",
+    );
+    const separator = check.url.includes("?") ? "&" : "?";
+    const pullUrl = `${check.url}${separator}action=pull`;
+    const response = await fetch(pullUrl, {
+      method: "GET",
+      headers: { Accept: "application/json", ...GSHEETS_HEADERS },
+      redirect: "follow",
+    });
+
+    if (!response.ok) {
+      console.warn("Auto-hydrate HTTP failed:", response.status, response.statusText);
+      return;
+    }
+
+    const json = await response.json().catch(() => null);
+    if (!json?.success || !json?.data) {
+      console.warn("Auto-hydrate received invalid data payload");
+      return;
+    }
+
+    db.transaction((tx) => {
+      restoreAllDataset(tx, json.data, "replace");
+    });
+    console.log("Auto-hydrate from Google Sheets completed successfully!");
+  } catch (err) {
+    console.warn("Auto-hydrate from Google Sheets failed:", err.message);
+  }
 }
 
 // POST /api/backup/google-sheets/test - Diagnostics & Connection Check

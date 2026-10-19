@@ -36,6 +36,22 @@ class GoogleSheetsSyncEngine {
     if (this.webhookUrl && this.queue.length > 0) {
       this.scheduleFlush();
     }
+
+    // Если URL не сохранен локально, пробуем получить URL из конфигурации сервера
+    if (!this.webhookUrl) {
+      this.initCloudConfig();
+    }
+  }
+
+  async initCloudConfig() {
+    try {
+      const cfg = await api.getGoogleSheetsConfig();
+      if (cfg?.webhookUrl && !this.webhookUrl) {
+        this.setWebhookUrl(cfg.webhookUrl);
+      }
+    } catch {
+      // ignore
+    }
   }
 
   computeStatus() {

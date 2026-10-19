@@ -1,7 +1,7 @@
 import cors from "cors";
 import express from "express";
 import { runMigrations } from "./db/migrate.js";
-import backupRouter from "./routes/backup.js";
+import backupRouter, { autoHydrateFromGoogleSheets } from "./routes/backup.js";
 import banksRouter from "./routes/banks.js";
 import categoriesRouter from "./routes/categories.js";
 import dashboardRouter from "./routes/dashboard.js";
@@ -10,6 +10,7 @@ import transactionsRouter from "./routes/transactions.js";
 
 // Run database migrations on startup
 runMigrations();
+autoHydrateFromGoogleSheets();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
