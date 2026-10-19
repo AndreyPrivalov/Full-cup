@@ -52,6 +52,10 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // --- Запуск сервера ---
-app.listen(PORT, () => {
-  console.log(`🚀 Сервер запущен: http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Сервер запущен: http://localhost:${PORT}`);
+  });
+}
+
+export default app;

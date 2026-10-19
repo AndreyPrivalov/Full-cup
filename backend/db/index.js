@@ -5,7 +5,10 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "shared/schema.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const DB_PATH = process.env.DB_PATH || path.join(__dirname, "fullcup.db");
+const defaultDbPath = process.env.VERCEL
+  ? path.join("/tmp", "fullcup.db")
+  : path.join(__dirname, "fullcup.db");
+export const DB_PATH = process.env.DB_PATH || defaultDbPath;
 
 const sqlite = new Database(DB_PATH);
 sqlite.pragma("journal_mode = WAL");
