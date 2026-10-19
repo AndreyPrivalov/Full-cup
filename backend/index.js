@@ -55,17 +55,34 @@ app.use(async (_req, _res, next) => {
   }
 });
 
+// --- Helper for dual mounting (/api/* and /*) ---
+const mountRouter = (path, router) => {
+  app.use(path, router);
+  const directPath = path.replace(/^\/api/, "");
+  if (directPath) {
+    app.use(directPath, router);
+  }
+};
+
 // --- Маршруты ---
-app.get("/api/health", (_req, res) => {
+app.get(["/api/health", "/health", "/api"], (_req, res) => {
   res.json({ status: "ok" });
 });
 
-app.use("/api/categories", categoriesRouter);
-app.use("/api/banks", banksRouter);
-app.use("/api/transactions", transactionsRouter);
-app.use("/api/savings", savingsRouter);
-app.use("/api/dashboard", dashboardRouter);
-app.use("/api/backup", backupRouter);
+mountRouter("/api/categories", categoriesRouter);
+mountRouter("/api/banks", banksRouter);
+mountRouter("/api/transactions", transactionsRouter);
+mountRouter("/api/savings", savingsRouter);
+mountRouter("/api/dashboard", dashboardRouter);
+mountRouter("/api/backup", backupRouter);
+
+// Fallback 404 for unmapped API endpoints
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api") || req.path.startsWith("/backup")) {
+    return res.status(404).json({ error: `Not Found: ${req.method} ${req.originalUrl}` });
+  }
+  next();
+});
 
 // --- Обработчик ошибок ---
 app.use((err, _req, res, _next) => {

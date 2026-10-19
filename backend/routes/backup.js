@@ -577,11 +577,32 @@ router.post(
         });
       }
 
-      const json = await response.json();
-      if (!json.success || !json.data) {
+      const rawText = await response.text();
+      let json = null;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        if (
+          rawText.includes("<!DOCTYPE") ||
+          rawText.includes("<html") ||
+          rawText.includes("accounts.google.com")
+        ) {
+          return res.status(500).json({
+            success: false,
+            error:
+              "Google Таблица вернула HTML-страницу вместо данных JSON. Проверьте, что в Google Apps Script развертывание настроено с доступом «Все (Anyone)», а в ссылке указан /exec.",
+          });
+        }
         return res.status(500).json({
           success: false,
-          error: json.error || "Некорректный формат ответа таблицы",
+          error: `Некорректный ответ от Google Таблицы: ${rawText.slice(0, 150)}`,
+        });
+      }
+
+      if (!json?.success || !json?.data) {
+        return res.status(500).json({
+          success: false,
+          error: json?.error || "Некорректный формат ответа таблицы",
         });
       }
 
