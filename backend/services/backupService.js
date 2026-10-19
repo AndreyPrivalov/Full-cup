@@ -1,7 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { count, desc, eq, sql } from "drizzle-orm";
-import { banks, categories, savings, transactionBanks, transactions } from "shared";
+import {
+  banks,
+  categories,
+  getLocalDateString,
+  savings,
+  transactionBanks,
+  transactions,
+} from "shared";
 import { DB_PATH, db } from "../db/index.js";
 import { parseCsv } from "../utils/csv.js";
 
@@ -145,7 +152,7 @@ export function importRows(tx, tableName, rows, mode = "replace") {
     const toInsert = [];
     for (const row of rows) {
       if (!row.date) continue;
-      const date = row.date.trim();
+      const date = getLocalDateString(row.date);
       const cash = Number.parseFloat(row.cash) || 0;
       const electronic = Number.parseFloat(row.electronic) || 0;
       const global_projects = Number.parseFloat(row.global_projects) || 0;
@@ -186,7 +193,7 @@ export function importRows(tx, tableName, rows, mode = "replace") {
       const amount = Number.parseFloat(row.amount);
       if (Number.isNaN(amount) || amount < 0) continue;
       const type = row.type === "income" ? "income" : "expense";
-      const date = row.date.trim();
+      const date = getLocalDateString(row.date);
       const comment = row.comment ? row.comment.trim() : null;
 
       let categoryId = null;

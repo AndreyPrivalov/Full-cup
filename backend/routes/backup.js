@@ -332,15 +332,23 @@ router.get(
   }),
 );
 
+let hasAttemptedHydration = false;
+
 /**
  * Auto-hydrates database from Google Sheets on startup if DB is empty and URL is configured.
  */
 export async function autoHydrateFromGoogleSheets(
   webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL,
 ) {
+  if (hasAttemptedHydration) return;
   if (!webhookUrl) return;
   const check = validateGoogleSheetsUrl(webhookUrl);
-  if (!check.valid) return;
+  if (!check.valid) {
+    console.warn("Invalid GOOGLE_SHEETS_WEBHOOK_URL format:", check.error);
+    return;
+  }
+
+  hasAttemptedHydration = true;
 
   try {
     const [txCount] = db.select({ count: count() }).from(transactions).all();
@@ -357,16 +365,21 @@ export async function autoHydrateFromGoogleSheets(
       method: "GET",
       headers: { Accept: "application/json", ...GSHEETS_HEADERS },
       redirect: "follow",
+      signal: AbortSignal.timeout(10000),
     });
 
-    if (!response.ok) {
-      console.warn("Auto-hydrate HTTP failed:", response.status, response.statusText);
+    if (!response.ok || response.url.includes("accounts.google.com")) {
+      console.warn("Auto-hydrate HTTP failed:", formatGoogleSheetsHttpError(response));
       return;
     }
 
-    const json = await response.json().catch(() => null);
+    const json = await response.json().catch((err) => {
+      console.warn("Auto-hydrate JSON parse error:", err.message);
+      return null;
+    });
+
     if (!json?.success || !json?.data) {
-      console.warn("Auto-hydrate received invalid data payload");
+      console.warn("Auto-hydrate received invalid data payload:", json);
       return;
     }
 

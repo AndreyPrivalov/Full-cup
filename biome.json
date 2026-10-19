@@ -25,7 +25,7 @@
     }
   },
   "javascript": {
-    "globals": ["SpreadsheetApp", "ContentService", "LockService"]
+    "globals": ["SpreadsheetApp", "ContentService", "LockService", "Utilities", "Session"]
   },
   "overrides": [
     {

@@ -16,7 +16,7 @@
 const STORAGE_URL_KEY = "fullcup_gsheets_url";
 const STORAGE_LAST_SYNC_KEY = "fullcup_gsheets_last_synced";
 const STORAGE_QUEUE_KEY = "fullcup_gsheets_queue_v1";
-const DEBOUNCE_DELAY_MS = 2500;
+const DEBOUNCE_DELAY_MS = 1000;
 
 import { collapseQueueAction, validateGoogleSheetsUrl } from "shared";
 import { api } from "../api";
@@ -40,6 +40,20 @@ class GoogleSheetsSyncEngine {
     // Если URL не сохранен локально, пробуем получить URL из конфигурации сервера
     if (!this.webhookUrl) {
       this.initCloudConfig();
+    }
+
+    // Немедленная отправка очереди при сворачивании или закрытии страницы
+    if (typeof window !== "undefined" && window.addEventListener) {
+      window.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden" && this.queue.length > 0 && this.webhookUrl) {
+          this.syncAllNow();
+        }
+      });
+      window.addEventListener("beforeunload", () => {
+        if (this.queue.length > 0 && this.webhookUrl) {
+          this.syncAllNow();
+        }
+      });
     }
   }
 

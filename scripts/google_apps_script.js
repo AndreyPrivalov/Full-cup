@@ -20,7 +20,7 @@
  * ============================================================================
  */
 
-/* global SpreadsheetApp, ContentService, LockService */
+/* global SpreadsheetApp, ContentService, LockService, Utilities, Session */
 
 const SHEET_NAMES = {
   TRANSACTIONS: "Операции",
@@ -311,7 +311,11 @@ function readSheetData(ss, sheetName, headers) {
     if (row[0] === "" || row[0] === null || row[0] === undefined) continue;
     const obj = {};
     for (let h = 0; h < numCols; h++) {
-      obj[headers[h]] = row[h];
+      let val = row[h];
+      if (val instanceof Date) {
+        val = Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
+      }
+      obj[headers[h]] = val;
     }
     result.push(obj);
   }

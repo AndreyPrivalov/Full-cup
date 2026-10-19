@@ -8,9 +8,34 @@ import dashboardRouter from "./routes/dashboard.js";
 import savingsRouter from "./routes/savings.js";
 import transactionsRouter from "./routes/transactions.js";
 
-// Run database migrations on startup
-runMigrations();
-autoHydrateFromGoogleSheets();
+let isReady = false;
+let initPromise = null;
+
+export async function ensureDatabaseReady() {
+  if (isReady) return;
+  if (!initPromise) {
+    initPromise = (async () => {
+      try {
+        runMigrations();
+        if (process.env.GOOGLE_SHEETS_WEBHOOK_URL) {
+          await autoHydrateFromGoogleSheets();
+        }
+        isReady = true;
+      } catch (err) {
+        console.error("Database readiness error:", err);
+        initPromise = null;
+        throw err;
+      }
+    })();
+  }
+  return initPromise;
+}
+
+if (!process.env.VERCEL) {
+  ensureDatabaseReady().catch((err) => {
+    console.error("Initial migration error:", err);
+  });
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -19,6 +44,16 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.text({ type: ["text/csv", "text/plain"], limit: "50mb" }));
+
+// Ensure database schema and Google Sheets data are ready before answering any request
+app.use(async (_req, _res, next) => {
+  try {
+    await ensureDatabaseReady();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 // --- Маршруты ---
 app.get("/api/health", (_req, res) => {
