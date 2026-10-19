@@ -42,13 +42,22 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.text({ type: ["text/csv", "text/plain"], limit: "50mb" }));
 
+// --- Lightweight health check (no DB dependency) ---
+app.get(["/api/health", "/health", "/api"], (_req, res) => {
+  res.json({ status: "ok" });
+});
+
 // Ensure database schema is ready on serverless cold starts
-app.use(async (_req, _res, next) => {
+app.use(async (_req, res, next) => {
   try {
     await ensureDatabaseReady();
     next();
   } catch (err) {
-    next(err);
+    console.error("Critical failure during ensureDatabaseReady:", err);
+    res.status(500).json({
+      error: "Database initialization error",
+      message: err.message,
+    });
   }
 });
 
@@ -60,11 +69,6 @@ const mountRouter = (path, router) => {
     app.use(directPath, router);
   }
 };
-
-// --- Маршруты ---
-app.get(["/api/health", "/health", "/api"], (_req, res) => {
-  res.json({ status: "ok" });
-});
 
 app.get(["/api/diagnostic", "/diagnostic"], async (_req, res) => {
   const { isTurso, tursoUrl } = await import("./db/index.js");
