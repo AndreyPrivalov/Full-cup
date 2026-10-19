@@ -4,6 +4,7 @@ import { api } from "../api";
 import { invalidateTransactionCaches } from "../hooks/invalidateQueries";
 import { useEntityList } from "../hooks/useEntityList";
 import { formatCurrency, getLocalMonthString } from "../utils";
+import { googleSheetsSync } from "../utils/googleSheetsSync";
 import { DeleteButton } from "./DeleteButton";
 import { OperationRow } from "./OperationRow";
 import { PageContainer } from "./PageLayout/index.jsx";
@@ -22,13 +23,24 @@ export const KaifBalanceView = () => {
 
   const addBankMutation = useMutation({
     mutationFn: api.addBank,
-    onSuccess: () => {
+    onSuccess: (result, variables) => {
+      googleSheetsSync.enqueueAction({
+        type: "ADD_BANK",
+        data: result || variables,
+      });
       invalidateTransactionCaches(queryClient);
     },
   });
 
   const updateBankMutation = useMutation({
     mutationFn: ({ id, data }) => api.updateBank(id, data),
+    onSuccess: (_result, { id, data }) => {
+      googleSheetsSync.enqueueAction({
+        type: "UPDATE_BANK",
+        id,
+        data,
+      });
+    },
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: ["banks"] });
       const previousBanks = queryClient.getQueryData(["banks"]);
@@ -51,6 +63,12 @@ export const KaifBalanceView = () => {
 
   const deleteBankMutation = useMutation({
     mutationFn: api.deleteBank,
+    onSuccess: (_result, id) => {
+      googleSheetsSync.enqueueAction({
+        type: "DELETE_BANK",
+        id,
+      });
+    },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ["banks"] });
       const previousBanks = queryClient.getQueryData(["banks"]);
@@ -118,13 +136,29 @@ export const KaifBalanceView = () => {
   const bankOperationsMap = useMemo(() => {
     const map = new Map();
     for (const op of operations) {
-      if (op.bank_id && op.date?.startsWith(currentMonthPrefix)) {
+      if (!op.date?.startsWith(currentMonthPrefix)) continue;
+      if (Array.isArray(op.banks) && op.banks.length > 0) {
+        for (const b of op.banks) {
+          let list = map.get(b.id);
+          if (!list) {
+            list = [];
+            map.set(b.id, list);
+          }
+          list.push({
+            ...op,
+            amount: b.amount,
+          });
+        }
+      } else if (op.bank_id) {
         let list = map.get(op.bank_id);
         if (!list) {
           list = [];
           map.set(op.bank_id, list);
         }
-        list.push(op);
+        list.push({
+          ...op,
+          amount: op.bank_amount ?? op.amount,
+        });
       }
     }
     return map;
@@ -165,7 +199,7 @@ export const KaifBalanceView = () => {
               <div className="a-flex a-justify-between a-items-baseline a-mt-8">
                 <span className="a-text-ld a-clr-text-primary">{formatCurrency(remaining)}</span>
                 <span
-                  className="a-text-sd a-clr-text-primary a-cursor-pointer"
+                  className="a-text-sd a-clr-text-secondary a-cursor-pointer"
                   onClick={() => handleEditLimit(bank)}
                 >
                   из {limit.toLocaleString("ru-RU")}
@@ -188,7 +222,7 @@ export const KaifBalanceView = () => {
                   </div>
                 )}
                 {bankOperations.map((tx) => (
-                  <OperationRow key={tx.id} operation={tx} showBadges={false} />
+                  <OperationRow key={`${tx.id}-${bank.id}`} operation={tx} showBadges={false} />
                 ))}
               </div>
             </div>
@@ -210,3 +244,5 @@ export const KaifBalanceView = () => {
     </PageContainer>
   );
 };
+
+export default KaifBalanceView;

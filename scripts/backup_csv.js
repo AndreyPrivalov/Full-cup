@@ -1,12 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import Database from "better-sqlite3";
-import { exportToCsv, parseCsv } from "../backend/utils/csv.js";
+import { banks, categories, savings, transactionBanks, transactions } from "shared";
+import { db } from "../backend/db/index.js";
+import {
+  createSafetySnapshot,
+  getFullDataBundle,
+  importTableData,
+  rollbackSafetySnapshot,
+} from "../backend/services/backupService.js";
+import { exportToCsv } from "../backend/utils/csv.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.dirname(__dirname);
-const dbPath = path.join(rootDir, "backend", "db", "fullcup.db");
 const defaultBackupDir = path.join(rootDir, "backups");
 
 const action = process.argv[2] || "export";
@@ -18,41 +24,27 @@ function runExport() {
     fs.mkdirSync(targetDir, { recursive: true });
   }
 
-  const db = new Database(dbPath);
+  const bundle = getFullDataBundle();
 
   // 1. Categories
-  const categories = db.prepare("SELECT id, name, type FROM categories ORDER BY id").all();
-  const catCsv = exportToCsv(["id", "name", "type"], categories);
+  const catCsv = exportToCsv(["id", "name", "type"], bundle.categories);
   fs.writeFileSync(path.join(targetDir, "categories.csv"), catCsv, "utf-8");
-  console.log(`✅ Exported ${categories.length} categories -> categories.csv`);
+  console.log(`✅ Exported ${bundle.categories.length} categories -> categories.csv`);
 
   // 2. Banks
-  const banks = db.prepare("SELECT id, name, month_limit FROM banks ORDER BY id").all();
-  const bankCsv = exportToCsv(["id", "name", "month_limit"], banks);
+  const bankCsv = exportToCsv(["id", "name", "month_limit"], bundle.banks);
   fs.writeFileSync(path.join(targetDir, "banks.csv"), bankCsv, "utf-8");
-  console.log(`✅ Exported ${banks.length} banks -> banks.csv`);
+  console.log(`✅ Exported ${bundle.banks.length} banks -> banks.csv`);
 
   // 3. Savings
-  const savings = db
-    .prepare("SELECT id, date, cash, electronic, global_projects, debts FROM savings ORDER BY date")
-    .all();
   const savCsv = exportToCsv(
     ["id", "date", "cash", "electronic", "global_projects", "debts"],
-    savings,
+    bundle.savings,
   );
   fs.writeFileSync(path.join(targetDir, "savings.csv"), savCsv, "utf-8");
-  console.log(`✅ Exported ${savings.length} savings records -> savings.csv`);
+  console.log(`✅ Exported ${bundle.savings.length} savings records -> savings.csv`);
 
   // 4. Transactions
-  const transactions = db
-    .prepare(
-      `SELECT t.id, t.date, t.amount, t.type, c.name as category_name, t.category_id, b.name as bank_name, t.bank_id, t.comment 
-       FROM transactions t 
-       LEFT JOIN categories c ON t.category_id = c.id 
-       LEFT JOIN banks b ON t.bank_id = b.id 
-       ORDER BY t.date DESC, t.id DESC`,
-    )
-    .all();
   const txCsv = exportToCsv(
     [
       "id",
@@ -63,147 +55,100 @@ function runExport() {
       "category_id",
       "bank_name",
       "bank_id",
+      "bank_amount",
       "comment",
     ],
-    transactions,
+    bundle.transactions,
   );
   fs.writeFileSync(path.join(targetDir, "transactions.csv"), txCsv, "utf-8");
-  console.log(`✅ Exported ${transactions.length} transactions -> transactions.csv`);
+  console.log(`✅ Exported ${bundle.transactions.length} transactions -> transactions.csv`);
 
-  db.close();
-  console.log("🎉 Backup export completed successfully!\n");
+  // 5. Transaction Banks
+  const tbCsv = exportToCsv(
+    ["id", "transaction_id", "bank_id", "amount"],
+    bundle.transaction_banks,
+  );
+  fs.writeFileSync(path.join(targetDir, "transaction_banks.csv"), tbCsv, "utf-8");
+  console.log(`✅ Exported ${bundle.transaction_banks.length} bank links -> transaction_banks.csv`);
+
+  console.log("🎉 All tables exported successfully!\n");
 }
 
 function runImport() {
-  console.log(`\n📥 Starting CSV Backup Restore from: ${targetDir}`);
+  console.log(`\n📥 Starting CSV Backup Import from: ${targetDir}`);
   if (!fs.existsSync(targetDir)) {
-    console.error(`❌ Backup directory not found: ${targetDir}`);
+    console.error(`❌ Target directory does not exist: ${targetDir}`);
     process.exit(1);
   }
 
-  const db = new Database(dbPath);
-  db.pragma("foreign_keys = OFF");
-
-  const importTx = db.transaction(() => {
-    // 1. Categories
-    const catFile = path.join(targetDir, "categories.csv");
-    if (fs.existsSync(catFile)) {
-      db.prepare("DELETE FROM categories").run();
-      const { rows } = parseCsv(fs.readFileSync(catFile, "utf-8"));
-      const insertCat = db.prepare("INSERT INTO categories (id, name, type) VALUES (?, ?, ?)");
-      for (const r of rows) {
-        if (r.name && r.type) {
-          insertCat.run(r.id ? Number(r.id) : null, r.name.trim(), r.type.trim());
-        }
-      }
-      console.log(`✅ Restored ${rows.length} categories`);
-    }
-
-    // 2. Banks
-    const bankFile = path.join(targetDir, "banks.csv");
-    if (fs.existsSync(bankFile)) {
-      db.prepare("DELETE FROM banks").run();
-      const { rows } = parseCsv(fs.readFileSync(bankFile, "utf-8"));
-      const insertBank = db.prepare("INSERT INTO banks (id, name, month_limit) VALUES (?, ?, ?)");
-      for (const r of rows) {
-        if (r.name) {
-          insertBank.run(
-            r.id ? Number(r.id) : null,
-            r.name.trim(),
-            Number.parseFloat(r.month_limit) || 0,
-          );
-        }
-      }
-      console.log(`✅ Restored ${rows.length} banks`);
-    }
-
-    // 3. Savings
-    const savFile = path.join(targetDir, "savings.csv");
-    if (fs.existsSync(savFile)) {
-      db.prepare("DELETE FROM savings").run();
-      const { rows } = parseCsv(fs.readFileSync(savFile, "utf-8"));
-      const insertSav = db.prepare(
-        "INSERT INTO savings (id, date, cash, electronic, global_projects, debts) VALUES (?, ?, ?, ?, ?, ?)",
-      );
-      for (const r of rows) {
-        if (r.date) {
-          insertSav.run(
-            r.id ? Number(r.id) : null,
-            r.date.trim(),
-            Number.parseFloat(r.cash) || 0,
-            Number.parseFloat(r.electronic) || 0,
-            Number.parseFloat(r.global_projects) || 0,
-            r.debts !== undefined && r.debts !== "" && r.debts !== "null"
-              ? Number.parseFloat(r.debts)
-              : null,
-          );
-        }
-      }
-      console.log(`✅ Restored ${rows.length} savings records`);
-    }
-
-    // 4. Transactions
-    const txFile = path.join(targetDir, "transactions.csv");
-    if (fs.existsSync(txFile)) {
-      db.prepare("DELETE FROM transactions").run();
-      const { rows } = parseCsv(fs.readFileSync(txFile, "utf-8"));
-
-      // Build maps for resolving category/bank
-      const allCats = db.prepare("SELECT id, name, type FROM categories").all();
-      const catMap = new Map();
-      for (const c of allCats) {
-        catMap.set(`${c.name}:${c.type}`, c.id);
-      }
-
-      const allBanks = db.prepare("SELECT id, name FROM banks").all();
-      const bankMap = new Map();
-      for (const b of allBanks) {
-        bankMap.set(b.name, b.id);
-      }
-
-      const insertTx = db.prepare(
-        "INSERT INTO transactions (id, amount, type, category_id, bank_id, date, comment) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      );
-
-      let count = 0;
-      for (const r of rows) {
-        if (!r.date || r.amount === undefined || r.amount === "") continue;
-        const amount = Number.parseFloat(r.amount);
-        if (Number.isNaN(amount) || amount < 0) continue;
-        const type = r.type === "income" ? "income" : "expense";
-        const date = r.date.trim();
-        const comment = r.comment ? r.comment.trim() : null;
-
-        let categoryId = null;
-        if (r.category_name && catMap.has(`${r.category_name.trim()}:${type}`)) {
-          categoryId = catMap.get(`${r.category_name.trim()}:${type}`);
-        } else if (r.category_id) {
-          categoryId = Number.parseInt(r.category_id, 10) || null;
-        }
-
-        let bankId = null;
-        if (r.bank_name && bankMap.has(r.bank_name.trim())) {
-          bankId = bankMap.get(r.bank_name.trim());
-        } else if (r.bank_id) {
-          bankId = Number.parseInt(r.bank_id, 10) || null;
-        }
-
-        insertTx.run(r.id ? Number(r.id) : null, amount, type, categoryId, bankId, date, comment);
-        count++;
-      }
-      console.log(`✅ Restored ${count} transactions`);
-    }
-  });
+  createSafetySnapshot("replace");
 
   try {
-    importTx();
+    db.transaction((tx) => {
+      // In replace mode, clean in foreign key safety order
+      tx.delete(transactionBanks).run();
+      tx.delete(transactions).run();
+      tx.delete(savings).run();
+      tx.delete(banks).run();
+      tx.delete(categories).run();
+
+      // 1. Categories
+      const catFile = path.join(targetDir, "categories.csv");
+      if (fs.existsSync(catFile)) {
+        const count = importTableData(
+          tx,
+          "categories",
+          fs.readFileSync(catFile, "utf-8"),
+          "append",
+        );
+        console.log(`✅ Restored ${count} categories`);
+      }
+
+      // 2. Banks
+      const bankFile = path.join(targetDir, "banks.csv");
+      if (fs.existsSync(bankFile)) {
+        const count = importTableData(tx, "banks", fs.readFileSync(bankFile, "utf-8"), "append");
+        console.log(`✅ Restored ${count} banks`);
+      }
+
+      // 3. Savings
+      const savFile = path.join(targetDir, "savings.csv");
+      if (fs.existsSync(savFile)) {
+        const count = importTableData(tx, "savings", fs.readFileSync(savFile, "utf-8"), "append");
+        console.log(`✅ Restored ${count} savings records`);
+      }
+
+      // 4. Transactions
+      const txFile = path.join(targetDir, "transactions.csv");
+      if (fs.existsSync(txFile)) {
+        const count = importTableData(
+          tx,
+          "transactions",
+          fs.readFileSync(txFile, "utf-8"),
+          "append",
+        );
+        console.log(`✅ Restored ${count} transactions`);
+      }
+
+      // 5. Transaction Banks
+      const tbFile = path.join(targetDir, "transaction_banks.csv");
+      if (fs.existsSync(tbFile)) {
+        tx.delete(transactionBanks).run();
+        const count = importTableData(
+          tx,
+          "transaction_banks",
+          fs.readFileSync(tbFile, "utf-8"),
+          "append",
+        );
+        console.log(`✅ Restored ${count} transaction_banks records`);
+      }
+    });
+
     console.log("🎉 Backup restore completed successfully!\n");
   } catch (err) {
-    console.error("❌ Restore failed:", err);
+    console.error("❌ Restore failed, rolling back:", err);
+    rollbackSafetySnapshot("replace", err);
     process.exit(1);
-  } finally {
-    db.pragma("foreign_keys = ON");
-    db.close();
   }
 }
 

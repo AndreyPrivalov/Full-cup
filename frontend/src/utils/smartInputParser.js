@@ -1,5 +1,3 @@
-﻿import { getLocalDateString } from "./index.js";
-
 /**
  * Standard dictionary of common aliases for financial categories.
  */
@@ -199,102 +197,98 @@ export const CATEGORY_ALIASES = {
   ],
   "Развлечения и хобби": [
     "развлечения",
-    "развлечение",
     "хобби",
-    "кино",
-    "кинотеатр",
-    "фильм",
-    "театр",
     "игры",
-    "игра",
+    "кино",
+    "театр",
     "концерт",
     "музей",
-    "бильярд",
+    "выставка",
     "боулинг",
+    "бильярд",
     "подписка",
-    "стим",
     "steam",
-    "плейстейшн",
     "playstation",
-    "отдых",
-    "клуб",
     "квест",
-    "бассейн",
     "спорт",
-    "зал",
     "фитнес",
+    "зал",
+    "бассейн",
+    "тренировка",
   ],
-  Техника: [
-    "техника",
-    "электроника",
-    "гаджеты",
-    "телефон",
-    "смартфон",
-    "ноутбук",
-    "компьютер",
-    "наушники",
-    "провод",
-    "зарядка",
-    "айфон",
-    "iphone",
-    "клавиатура",
-    "мышка",
-    "монитор",
-  ],
-  Подарок: ["подарок", "подарки", "др", "деньрождения", "праздник", "цветы", "букет", "сувенир"],
+  Подарки: ["подарки", "подарок", "цветы", "букет", "сувенир", "сюрприз", "донат"],
   "Обустройство дома": [
     "обустройство",
     "мебель",
     "ремонт",
     "икеа",
     "леруа",
-    "декор",
+    "леруамерлен",
+    "hoff",
     "посуда",
     "текстиль",
+    "растения",
     "шторы",
-    "лампа",
-    "люстра",
     "инструменты",
-    "стройматериалы",
-    "обои",
-    "строительный",
   ],
-  Другое: ["другое", "прочее", "разное", "штраф", "налог", "комиссия", "пошлина"],
+  Техника: [
+    "техника",
+    "гаджеты",
+    "телефон",
+    "смартфон",
+    "ноутбук",
+    "компьютер",
+    "наушники",
+    "dns",
+    "днс",
+    "мвидео",
+    "эльдорадо",
+    "apple",
+    "айфон",
+    "электроника",
+    "чехол",
+    "провод",
+  ],
+  Родители: ["родители", "мама", "папа", "маме", "папе", "семья", "родителям"],
+  Другое: ["другое", "прочее", "разное"],
 
-  // Incomes
+  // Income
   Работа: [
     "работа",
-    "зп",
     "зарплата",
+    "зп",
     "аванс",
     "премия",
-    "оклад",
     "бонус",
+    "оклад",
     "подработка",
     "фриланс",
-    "гонорар",
-    "оплата",
     "проект",
+    "гонорар",
+    "доход",
+    "выплата",
+    "получка",
   ],
   Инвестиции: [
     "инвестиции",
     "дивиденды",
-    "проценты",
     "купоны",
     "акции",
+    "облигации",
+    "проценты",
     "вклад",
     "депозит",
-    "доход",
-    "крипта",
+    "биржа",
     "брокер",
-    "облигации",
+    "крипта",
+    "пассивный доход",
   ],
-  Родители: ["родители", "мама", "папа", "семья", "родные"],
+  Кэшбэк: ["кэшбэк", "кешбэк", "кэшбек", "кешбек", "бонусы", "баллы", "возврат", "спасибо"],
   Стипендия: ["стипендия", "стипуха"],
 };
 
 /**
- * Standard dictionary of bank aliases and brand synonyms.
+ * Standard dictionary of bank aliases and canonical names.
  */
 export const BANK_ALIASES = {
   Сбер: ["сбер", "сбербанк", "sber", "sberbank", "сбера", "сберу"],
@@ -317,63 +311,16 @@ export const BANK_ALIASES = {
   Наличные: ["наличные", "наличка", "нал", "кэш", "cash"],
 };
 
-const RUSSIAN_PREPOSITIONS = new Set([
-  "в",
-  "во",
-  "на",
-  "за",
-  "по",
-  "для",
-  "от",
-  "с",
-  "со",
-  "из",
-  "изо",
-  "у",
-  "к",
-  "ко",
-  "под",
-  "про",
-  "о",
-  "об",
-  "обо",
-]);
-
 /**
- * Extracts a Russian word stem by stripping inflectional and derivational suffixes.
- * @param {string} word
- * @returns {string}
- */
-export function getRussianStem(word) {
-  if (!word || typeof word !== "string") return "";
-  const w = word.trim().toLowerCase();
-  if (w.length < 4) return w;
-
-  // Strip derivational suffixes for institutions/places/diminutives
-  let stem = w.replace(
-    /(?:ская|ский|ское|ия|ии|ией|ию|иями|ях|ах|ик|ник|чик|щик|очка|ечка|ишка|ышка)$/i,
-    "",
-  );
-  if (stem.length < 3) stem = w;
-
-  // Strip inflectional case/adjectival endings
-  stem = stem.replace(
-    /(?:ов|ев|ей|ами|ями|ях|ах|ом|ем|ой|ей|ью|ую|юю|ая|яя|ое|ее|ые|ие|ый|ий|ой|ам|ям|ы|и|а|я|у|ю|е|о)$/i,
-    "",
-  );
-  return stem.length >= 3 ? stem : w;
-}
-
-/**
- * Evaluates an arithmetic expression containing +, -, *, /.
- * Handles thousands spaces ('1 500') and currency suffixes ('руб', 'р', '₽').
+ * Evaluates an arithmetic expression containing numbers and operators (+, -, *, /).
+ * Normalizes thousands separators and commas.
  *
  * @param {string} expr
- * @returns {{ value: number | null, expression: string | null }}
+ * @returns {{ value: number | null, expression: string | null, terms: Array<{ op: string, value: number }> }}
  */
 export function evaluateMathExpression(expr) {
   if (!expr || typeof expr !== "string") {
-    return { value: null, expression: null };
+    return { value: null, expression: null, terms: [] };
   }
 
   // 1. Remove currency symbols and abbreviations
@@ -385,13 +332,12 @@ export function evaluateMathExpression(expr) {
   // 2. Normalize spaces within numbers: '1 500' -> '1500'
   clean = clean.replace(/(\d)\s+(\d{3})(?!\d)/g, "$1$2");
 
-  // 3. Match arithmetic tokens: numbers or operators (+, -, *, /)
+  // 3. Match arithmetic tokens
   const tokens = clean.match(/(\d+(?:\.\d+)?|[+\-*/])/g);
   if (!tokens || tokens.length === 0) {
-    return { value: null, expression: null };
+    return { value: null, expression: null, terms: [] };
   }
 
-  // Parse numbers and operators into list
   const parsed = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -406,7 +352,7 @@ export function evaluateMathExpression(expr) {
   }
 
   if (parsed.length === 0 || typeof parsed[0] !== "number") {
-    return { value: null, expression: null };
+    return { value: null, expression: null, terms: [] };
   }
 
   // First pass: Handle * and /
@@ -431,8 +377,8 @@ export function evaluateMathExpression(expr) {
   // Second pass: Handle + and -
   let total = typeof afterMulDiv[0] === "number" ? afterMulDiv[0] : 0;
   let currentOp = "+";
-  const hasOperator = parsed.some((t) => typeof t === "string");
   const numCount = parsed.filter((t) => typeof t === "number").length;
+  const terms = [{ op: "+", value: typeof afterMulDiv[0] === "number" ? afterMulDiv[0] : 0 }];
 
   for (let j = 1; j < afterMulDiv.length; j++) {
     const token = afterMulDiv[j];
@@ -441,604 +387,44 @@ export function evaluateMathExpression(expr) {
     } else if (typeof token === "number") {
       if (currentOp === "+") total += token;
       else if (currentOp === "-") total -= token;
+      terms.push({ op: currentOp, value: token });
     }
   }
 
   if (numCount === 0) {
-    return { value: null, expression: null };
+    return { value: null, expression: null, terms: [] };
   }
 
   total = Math.round(total * 100) / 100;
 
   return {
     value: total > 0 ? total : null,
-    expression: hasOperator && numCount > 1 ? expr.trim() : null,
+    expression: numCount > 1 ? expr.trim() : null,
+    terms,
   };
 }
 
 /**
- * Standard Levenshtein distance algorithm for fuzzy typo matching.
- * @param {string} a
- * @param {string} b
- * @returns {number}
+ * Clean category suggestions with exact, prefix, word, and alias matching.
+ *
+ * @param {string} prefix
+ * @param {Array<{ id: number, name: string, type: string }>} categories
+ * @returns {Array<any>}
  */
-export function levenshteinDistance(a, b) {
-  const s1 = a.toLowerCase();
-  const s2 = b.toLowerCase();
-  const m = s1.length;
-  const n = s2.length;
-
-  if (m === 0) return n;
-  if (n === 0) return m;
-
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (s1[i - 1] === s2[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1];
-      } else {
-        dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + 1);
-      }
-    }
-  }
-
-  return dp[m][n];
-}
-
-/**
- * Matches category in token list with aliases, stemming, and fuzzy matching.
- */
-export function matchCategory(tokens, categories) {
-  if (!tokens.length || !categories.length) return null;
-
-  const nGramCandidates = [];
-  for (let len = 3; len >= 1; len--) {
-    for (let i = 0; i <= tokens.length - len; i++) {
-      const slice = tokens.slice(i, i + len);
-      const text = slice.join(" ").toLowerCase();
-      const indices = Array.from({ length: len }, (_, k) => i + k);
-      nGramCandidates.push({ text, indices, length: len });
-    }
-  }
-
-  // 1. Exact match with category name
-  for (const cand of nGramCandidates) {
-    for (const cat of categories) {
-      if (cat.name.toLowerCase() === cand.text) {
-        return {
-          category: cat,
-          matchedIndices: cand.indices,
-          wasCorrected: false,
-          originalWord: cand.text,
-          matchedWord: cat.name,
-        };
-      }
-    }
-  }
-
-  // 2. Exact match with alias dictionary
-  for (const cand of nGramCandidates) {
-    for (const cat of categories) {
-      const aliases = CATEGORY_ALIASES[cat.name] || [];
-      if (aliases.includes(cand.text)) {
-        return {
-          category: cat,
-          matchedIndices: cand.indices,
-          wasCorrected: false,
-          originalWord: cand.text,
-          matchedWord: cat.name,
-        };
-      }
-    }
-  }
-
-  // 3. Exact match with distinct words inside multi-word category names
-  for (const cand of nGramCandidates) {
-    if (cand.length === 1 && cand.text.length >= 3) {
-      for (const cat of categories) {
-        const catWords = cat.name
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((w) => w.length >= 3 && w !== "и");
-        if (catWords.includes(cand.text)) {
-          return {
-            category: cat,
-            matchedIndices: cand.indices,
-            wasCorrected: false,
-            originalWord: cand.text,
-            matchedWord: cat.name,
-          };
-        }
-      }
-    }
-  }
-
-  // 4. Russian stem matching (e.g. 'аптеку' -> 'Здоровье', 'парикмахерская' -> 'Красота')
-  for (const cand of nGramCandidates) {
-    if (cand.length === 1 && cand.text.length >= 3) {
-      const wordStem = getRussianStem(cand.text);
-      for (const cat of categories) {
-        // Check category name stem
-        const catStem = getRussianStem(cat.name);
-        if (catStem.length >= 3 && (wordStem.startsWith(catStem) || catStem.startsWith(wordStem))) {
-          return {
-            category: cat,
-            matchedIndices: cand.indices,
-            wasCorrected: true,
-            originalWord: cand.text,
-            matchedWord: cat.name,
-          };
-        }
-
-        // Check alias stems
-        const aliases = CATEGORY_ALIASES[cat.name] || [];
-        for (const alias of aliases) {
-          const aliasStem = getRussianStem(alias);
-          if (
-            aliasStem.length >= 3 &&
-            (wordStem.startsWith(aliasStem) || aliasStem.startsWith(wordStem))
-          ) {
-            return {
-              category: cat,
-              matchedIndices: cand.indices,
-              wasCorrected: true,
-              originalWord: cand.text,
-              matchedWord: cat.name,
-            };
-          }
-        }
-      }
-    }
-  }
-
-  // 5. Fuzzy match with typos (Levenshtein distance)
-  for (const cand of nGramCandidates) {
-    if (cand.length !== 1) continue;
-    const word = cand.text;
-    if (word.length < 3) continue;
-
-    const maxDist = word.length <= 4 ? 1 : 2;
-    let bestMatch = null;
-    let minDistance = maxDist + 1;
-
-    for (const cat of categories) {
-      const distFullName = levenshteinDistance(word, cat.name);
-      if (distFullName <= maxDist && distFullName < minDistance) {
-        minDistance = distFullName;
-        bestMatch = {
-          category: cat,
-          matchedIndices: cand.indices,
-          wasCorrected: true,
-          originalWord: word,
-          matchedWord: cat.name,
-        };
-      }
-
-      const catWords = cat.name
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((w) => w.length >= 3 && w !== "и");
-      for (const cw of catWords) {
-        const distWord = levenshteinDistance(word, cw);
-        if (distWord <= maxDist && distWord < minDistance) {
-          minDistance = distWord;
-          bestMatch = {
-            category: cat,
-            matchedIndices: cand.indices,
-            wasCorrected: true,
-            originalWord: word,
-            matchedWord: cat.name,
-          };
-        }
-      }
-
-      const aliases = CATEGORY_ALIASES[cat.name] || [];
-      for (const alias of aliases) {
-        if (alias.length >= 3) {
-          const distAlias = levenshteinDistance(word, alias);
-          if (distAlias <= maxDist && distAlias < minDistance) {
-            minDistance = distAlias;
-            bestMatch = {
-              category: cat,
-              matchedIndices: cand.indices,
-              wasCorrected: true,
-              originalWord: word,
-              matchedWord: cat.name,
-            };
-          }
-        }
-      }
-    }
-
-    if (bestMatch) {
-      return bestMatch;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Matches bank in token list.
- */
-export function matchBank(tokens, banks) {
-  if (!tokens.length || !banks.length) return null;
-
-  for (let len = 2; len >= 1; len--) {
-    for (let i = 0; i <= tokens.length - len; i++) {
-      const slice = tokens.slice(i, i + len);
-      const text = slice.join(" ").toLowerCase();
-      const indices = Array.from({ length: len }, (_, k) => i + k);
-
-      for (const bank of banks) {
-        const bankName = bank.name.toLowerCase();
-
-        // Exact match
-        if (bankName === text) {
-          return { bank, matchedIndices: indices };
-        }
-
-        // Check canonical bank aliases
-        for (const [canonical, aliases] of Object.entries(BANK_ALIASES)) {
-          if (
-            bankName.includes(canonical.toLowerCase()) ||
-            canonical.toLowerCase().includes(bankName)
-          ) {
-            if (
-              aliases.includes(text) ||
-              aliases.some((a) => a === text || (text.length >= 4 && a.startsWith(text)))
-            ) {
-              return { bank, matchedIndices: indices };
-            }
-          }
-        }
-
-        // Distinctive person name in bank (e.g. "Андрей", "Диана")
-        if (len === 1) {
-          if (bankName.includes("андрей") && /^(андрей|андрея|андрею|андреем)$/i.test(text)) {
-            return { bank, matchedIndices: indices };
-          }
-          if (bankName.includes("диана") && /^(диана|дианы|диане|дианой)$/i.test(text)) {
-            return { bank, matchedIndices: indices };
-          }
-          const words = bankName.split(/\s+/).filter((w) => w.length >= 3 && w !== "кайф");
-          if (
-            words.some(
-              (w) =>
-                w === text ||
-                (text.length >= 4 && w.startsWith(text)) ||
-                levenshteinDistance(text, w) <= 1,
-            )
-          ) {
-            return { bank, matchedIndices: indices };
-          }
-        }
-      }
-    }
-  }
-
-  return null;
-}
-
-const MONTH_NAMES = {
-  янв: 1,
-  января: 1,
-  "янв.": 1,
-  фев: 2,
-  февраля: 2,
-  февр: 2,
-  мар: 3,
-  марта: 3,
-  апр: 4,
-  апреля: 4,
-  май: 5,
-  мая: 5,
-  июн: 6,
-  июня: 6,
-  июл: 7,
-  июля: 7,
-  авг: 8,
-  августа: 8,
-  сен: 9,
-  сентября: 9,
-  сент: 9,
-  окт: 10,
-  октября: 10,
-  ноя: 11,
-  ноября: 11,
-  нояб: 11,
-  дек: 12,
-  декабря: 12,
-};
-
-const WEEKDAYS = {
-  понедельник: 1,
-  пн: 1,
-  вторник: 2,
-  вт: 2,
-  среду: 3,
-  среда: 3,
-  ср: 3,
-  четверг: 4,
-  чт: 4,
-  пятницу: 5,
-  пятница: 5,
-  пт: 5,
-  субботу: 6,
-  суббота: 6,
-  сб: 6,
-  воскресенье: 0,
-  вс: 0,
-};
-
-/**
- * Matches date keyword or format in tokens.
- */
-export function matchDate(tokens) {
-  const today = new Date();
-
-  // Check 2-word combinations first (e.g. '5 октября', '12 сент')
-  for (let i = 0; i <= tokens.length - 2; i++) {
-    const first = tokens[i].toLowerCase();
-    const second = tokens[i + 1].toLowerCase();
-
-    // '5 октября' or '12 сент'
-    const dayNum = Number.parseInt(first, 10);
-    if (!Number.isNaN(dayNum) && dayNum >= 1 && dayNum <= 31 && MONTH_NAMES[second]) {
-      const month = MONTH_NAMES[second];
-      const year = today.getFullYear();
-      const formatted = `${year}-${String(month).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
-      return { date: formatted, matchedIndices: [i, i + 1] };
-    }
-
-    // 'в понедельник' or 'в субботу'
-    if ((first === "в" || first === "во") && WEEKDAYS[second] !== undefined) {
-      const targetDay = WEEKDAYS[second];
-      const currentDay = today.getDay();
-      let diff = currentDay - targetDay;
-      if (diff <= 0) diff += 7; // Nearest past day of that week
-      const d = new Date(today);
-      d.setDate(d.getDate() - diff);
-      return { date: getLocalDateString(d), matchedIndices: [i, i + 1] };
-    }
-  }
-
-  // Check single tokens
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i].toLowerCase();
-
-    if (token === "сегодня") {
-      return { date: getLocalDateString(today), matchedIndices: [i] };
-    }
-
-    if (token === "вчера") {
-      const d = new Date(today);
-      d.setDate(d.getDate() - 1);
-      return { date: getLocalDateString(d), matchedIndices: [i] };
-    }
-
-    if (token === "позавчера") {
-      const d = new Date(today);
-      d.setDate(d.getDate() - 2);
-      return { date: getLocalDateString(d), matchedIndices: [i] };
-    }
-
-    // Weekday directly ('понедельник', 'пятницу')
-    if (WEEKDAYS[token] !== undefined) {
-      const targetDay = WEEKDAYS[token];
-      const currentDay = today.getDay();
-      let diff = currentDay - targetDay;
-      if (diff <= 0) diff += 7;
-      const d = new Date(today);
-      d.setDate(d.getDate() - diff);
-      return { date: getLocalDateString(d), matchedIndices: [i] };
-    }
-
-    // Format DD.MM or DD.MM.YYYY or DD/MM or DD/MM/YYYY
-    const dateMatch = token.match(/^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?$/);
-    if (dateMatch) {
-      const day = Number.parseInt(dateMatch[1], 10);
-      const month = Number.parseInt(dateMatch[2], 10);
-      let year = dateMatch[3] ? Number.parseInt(dateMatch[3], 10) : today.getFullYear();
-      if (year < 100) year += 2000;
-
-      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-        const formattedDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-        return { date: formattedDate, matchedIndices: [i] };
-      }
-    }
-
-    // Format YYYY-MM-DD
-    const isoMatch = token.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (isoMatch) {
-      return { date: token, matchedIndices: [i] };
-    }
-  }
-
-  return null;
-}
-
-/**
- * Main parser function: parses a smart input string into structured transaction fields.
- */
-export function parseSmartInput({ input = "", categories = [], banks = [], type = "expense" }) {
-  const trimmed = input.trim();
-  const defaultDate = getLocalDateString();
-
-  if (!trimmed) {
-    const defaultCat = categories.find((c) => c.type === type);
-    return {
-      amount: null,
-      mathBreakdown: null,
-      category_id: defaultCat ? defaultCat.id : null,
-      category_name: defaultCat ? defaultCat.name : null,
-      bank_id: null,
-      bank_name: null,
-      date: defaultDate,
-      comment: "",
-      categoryCorrection: null,
-    };
-  }
-
-  // Pre-normalize currency symbols and thousands spaces
-  let normalized = trimmed.replace(/(\d)\s+(\d{3})(?!\d)/g, "$1$2");
-  normalized = normalized.replace(
-    /(\d+(?:[.,]\d+)?)\s*(?:₽|руб(?:л[ейя])?|р(?=\s|$)|rur|rub)/gi,
-    "$1 ",
-  );
-
-  let amount = null;
-  let mathBreakdown = null;
-  let textWithoutMath = normalized;
-
-  // 1. Look for compound math expressions first: numbers joined by +, -, *, /
-  const compoundMathRegex = /(?:^|\s)(\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)+)(?:\s|$)/;
-  const compoundMatch = normalized.match(compoundMathRegex);
-
-  if (compoundMatch) {
-    const mathRaw = compoundMatch[1];
-    const evaluated = evaluateMathExpression(mathRaw);
-    if (evaluated.value !== null) {
-      amount = evaluated.value;
-      mathBreakdown = evaluated.expression;
-      textWithoutMath = normalized.replace(mathRaw, " ").trim();
-    }
-  }
-
-  // If no compound expression found, extract first standalone number
-  if (amount === null) {
-    const singleNumberRegex = /(?:^|\s)(\d+(?:[.,]\d+)?)(?:\s|$)/;
-    const singleMatch = textWithoutMath.match(singleNumberRegex);
-    if (singleMatch) {
-      const numRaw = singleMatch[1];
-      const evaluated = evaluateMathExpression(numRaw);
-      if (evaluated.value !== null) {
-        amount = evaluated.value;
-        mathBreakdown = null;
-        textWithoutMath = textWithoutMath.replace(numRaw, " ").trim();
-      }
-    }
-  }
-
-  // 2. Tokenize remaining words for NLP parsing
-  const rawTokens = textWithoutMath.split(/\s+/).filter(Boolean);
-  const tokens = rawTokens
-    .map((t) => t.replace(/^[^\wа-яёА-ЯЁ0-9]+|[^\wа-яёА-ЯЁ0-9]+$/g, ""))
-    .filter(Boolean);
-
-  const matchedIndices = new Set();
-
-  // 3. Match Date
-  const dateResult = matchDate(tokens);
-  const date = dateResult ? dateResult.date : defaultDate;
-  if (dateResult) {
-    for (const idx of dateResult.matchedIndices) {
-      matchedIndices.add(idx);
-    }
-  }
-
-  // 4. Match Bank (only for expense type)
-  let bank_id = null;
-  let bank_name = null;
-  if (type === "expense") {
-    const bankTokens = tokens.map((t, idx) => (matchedIndices.has(idx) ? "" : t));
-    const bankResult = matchBank(bankTokens, banks);
-    if (bankResult) {
-      bank_id = bankResult.bank.id;
-      bank_name = bankResult.bank.name;
-      for (const idx of bankResult.matchedIndices) {
-        matchedIndices.add(idx);
-      }
-    }
-  }
-
-  // 5. Match Category (filtered by current type)
-  const currentCategories = categories.filter((c) => c.type === type);
-  const categoryTokens = tokens.map((t, idx) => (matchedIndices.has(idx) ? "" : t));
-  const categoryResult = matchCategory(categoryTokens, currentCategories);
-
-  let category_id = null;
-  let category_name = null;
-  let categoryCorrection = null;
-
-  if (categoryResult) {
-    category_id = categoryResult.category.id;
-    category_name = categoryResult.category.name;
-    for (const idx of categoryResult.matchedIndices) {
-      matchedIndices.add(idx);
-    }
-    if (categoryResult.wasCorrected) {
-      categoryCorrection = {
-        wasCorrected: true,
-        originalWord: categoryResult.originalWord,
-        matchedWord: categoryResult.matchedWord,
-      };
-    }
-  }
-
-  // 6. Preposition cleaning: clean prepositions that immediately precede matched tokens
-  for (const idx of matchedIndices) {
-    if (idx > 0 && !matchedIndices.has(idx - 1)) {
-      const prevWord = tokens[idx - 1].toLowerCase();
-      if (RUSSIAN_PREPOSITIONS.has(prevWord)) {
-        matchedIndices.add(idx - 1);
-      }
-    }
-  }
-
-  // 7. Remaining unmatched tokens become comment
-  const commentTokens = [];
-  for (let i = 0; i < tokens.length; i++) {
-    if (!matchedIndices.has(i)) {
-      commentTokens.push(rawTokens[i] || tokens[i]);
-    }
-  }
-
-  // Filter out comments that only consist of isolated prepositions
-  let comment = commentTokens.join(" ").trim();
-  const commentWords = comment.toLowerCase().split(/\s+/).filter(Boolean);
-  if (commentWords.length > 0 && commentWords.every((w) => RUSSIAN_PREPOSITIONS.has(w))) {
-    comment = "";
-  }
-
-  return {
-    amount,
-    mathBreakdown,
-    category_id,
-    category_name,
-    bank_id,
-    bank_name,
-    date,
-    comment,
-    categoryCorrection,
-  };
-}
-
-/**
- * Returns category suggestions matching a search prefix, alias, or fuzzy typo.
- */
-export function getCategorySuggestions(prefix, categories) {
+export function getCategorySuggestions(prefix, categories = []) {
   if (!categories?.length) return [];
   if (!prefix?.trim()) {
     return categories.map((c) => ({
       ...c,
       matchedAlias: null,
-      wasCorrected: false,
-      ghostSuffix: "",
     }));
   }
 
   const p = prefix.trim().toLowerCase();
-  const pStem = getRussianStem(p);
-
   const startsWithName = [];
-  const includesName = [];
+  const wordsStartWithName = [];
   const aliasMatch = [];
-  const fuzzyMatch = [];
+  const includesName = [];
 
   for (const cat of categories) {
     const name = cat.name.toLowerCase();
@@ -1050,32 +436,26 @@ export function getCategorySuggestions(prefix, categories) {
       startsWithName.push({
         ...cat,
         matchedAlias: null,
-        wasCorrected: false,
-        ghostSuffix: cat.name.slice(prefix.trim().length),
       });
       continue;
     }
 
-    // 2. Distinct words in name
+    // 2. Distinct words in name start with prefix
     const matchedWord = catWords.find((w) => w.startsWith(p));
-    if (name.includes(p) || matchedWord) {
-      includesName.push({
+    if (matchedWord) {
+      wordsStartWithName.push({
         ...cat,
-        matchedAlias: matchedWord ? cat.name : null,
-        wasCorrected: false,
-        ghostSuffix: matchedWord ? matchedWord.slice(p.length) : "",
+        matchedAlias: cat.name,
       });
       continue;
     }
 
-    // 3. Alias match (startsWith or includes or stem match)
+    // 3. Alias match (startsWith or includes)
     const exactAlias = aliases.find((a) => a.startsWith(p));
     if (exactAlias) {
       aliasMatch.push({
         ...cat,
         matchedAlias: exactAlias,
-        wasCorrected: false,
-        ghostSuffix: exactAlias.slice(p.length),
       });
       continue;
     }
@@ -1085,65 +465,23 @@ export function getCategorySuggestions(prefix, categories) {
       aliasMatch.push({
         ...cat,
         matchedAlias: incAlias,
-        wasCorrected: false,
-        ghostSuffix: "",
       });
       continue;
     }
 
-    // Stem match on aliases
-    if (pStem.length >= 3) {
-      const stemAlias = aliases.find((a) => {
-        const aStem = getRussianStem(a);
-        return aStem.length >= 3 && (aStem.startsWith(pStem) || pStem.startsWith(aStem));
+    // 4. Category name includes prefix
+    if (name.includes(p)) {
+      includesName.push({
+        ...cat,
+        matchedAlias: null,
       });
-      if (stemAlias) {
-        aliasMatch.push({
-          ...cat,
-          matchedAlias: stemAlias,
-          wasCorrected: true,
-          originalWord: prefix.trim(),
-          ghostSuffix: stemAlias.length > p.length ? stemAlias.slice(p.length) : "",
-        });
-        continue;
-      }
-    }
-
-    // 4. Fuzzy typo matching via Levenshtein
-    if (p.length >= 3) {
-      const maxDist = p.length <= 4 ? 1 : 2;
-      const isFuzzyName =
-        levenshteinDistance(p, name) <= maxDist ||
-        catWords.some((w) => levenshteinDistance(p, w) <= maxDist);
-
-      if (isFuzzyName) {
-        fuzzyMatch.push({
-          ...cat,
-          matchedAlias: null,
-          wasCorrected: true,
-          originalWord: prefix.trim(),
-          ghostSuffix: cat.name.length > p.length ? cat.name.slice(p.length) : "",
-        });
-        continue;
-      }
-
-      const fuzzyAlias = aliases.find((a) => a.length >= 3 && levenshteinDistance(p, a) <= maxDist);
-      if (fuzzyAlias) {
-        fuzzyMatch.push({
-          ...cat,
-          matchedAlias: fuzzyAlias,
-          wasCorrected: true,
-          originalWord: prefix.trim(),
-          ghostSuffix: fuzzyAlias.length > p.length ? fuzzyAlias.slice(p.length) : "",
-        });
-      }
     }
   }
 
-  // Deduplicate by id preserving priority
+  // Deduplicate preserving ranking order
   const seen = new Set();
   const results = [];
-  for (const item of [...startsWithName, ...includesName, ...aliasMatch, ...fuzzyMatch]) {
+  for (const item of [...startsWithName, ...wordsStartWithName, ...aliasMatch, ...includesName]) {
     if (!seen.has(item.id)) {
       seen.add(item.id);
       results.push(item);
@@ -1154,71 +492,166 @@ export function getCategorySuggestions(prefix, categories) {
 }
 
 /**
- * Returns bank suggestions matching a prefix.
+ * Returns bank suggestions matching prefix or alias.
+ *
+ * @param {string} prefix
+ * @param {Array<{ id: number, name: string }>} banks
+ * @returns {Array<any>}
  */
-export function getBankSuggestions(prefix, banks) {
-  if (!banks?.length) return [];
-  if (!prefix?.trim()) {
-    return banks.map((b) => ({
-      ...b,
-      ghostSuffix: "",
-    }));
+/**
+ * Helper to match Russian words and word forms (e.g. "Андрей" / "Андрея", "Диана" / "Дианы", "Сбер" / "Сбербанк").
+ */
+function stemMatch(a, b) {
+  if (!a || !b) return false;
+  const s1 = a.toLowerCase();
+  const s2 = b.toLowerCase();
+  if (s1 === s2) return true;
+  if (s1.startsWith(s2) || s2.startsWith(s1)) return true;
+  const minLen = Math.min(s1.length, s2.length);
+  if (minLen >= 3) {
+    const prefixLen = minLen >= 4 ? minLen - 1 : minLen;
+    if (s1.slice(0, prefixLen) === s2.slice(0, prefixLen)) {
+      return true;
+    }
   }
+  return false;
+}
 
-  const p = prefix.trim().toLowerCase();
-  const startsWith = [];
-  const includes = [];
-  const aliasMatched = [];
-  const fuzzy = [];
+/**
+ * Finds a matching bank for candidate text, checking exact names, aliases, and words.
+ *
+ * @param {string} text
+ * @param {Array<{ id: number, name: string }>} banks
+ * @param {Set<number>} [excludeIds]
+ * @returns {{ id: number, name: string } | null}
+ */
+export function findBankMatch(text, banks = [], excludeIds = new Set()) {
+  const p = text.trim().toLowerCase();
+  if (!p) return null;
+
+  const candidateWords = p.split(/\s+/).filter(Boolean);
 
   for (const b of banks) {
+    if (excludeIds.has(b.id)) continue;
     const name = b.name.toLowerCase();
-    if (name.startsWith(p)) {
-      startsWith.push({
-        ...b,
-        ghostSuffix: b.name.slice(prefix.trim().length),
-      });
-      continue;
-    }
 
-    const words = name.split(/\s+/).filter((w) => w.length >= 2);
-    const matchedWord = words.find((w) => w.startsWith(p));
-    if (name.includes(p) || matchedWord) {
-      includes.push({
-        ...b,
-        ghostSuffix: matchedWord ? matchedWord.slice(p.length) : "",
-      });
-      continue;
-    }
+    // 1. Exact match with bank name
+    if (name === p) return b;
 
-    // Check bank aliases
+    // 2. Canonical bank aliases
     for (const [canonical, aliases] of Object.entries(BANK_ALIASES)) {
       if (name.includes(canonical.toLowerCase()) || canonical.toLowerCase().includes(name)) {
-        const found = aliases.find((a) => a.startsWith(p) || a.includes(p));
-        if (found) {
-          aliasMatched.push({
-            ...b,
-            ghostSuffix: found.length > p.length ? found.slice(p.length) : "",
-          });
-          break;
+        if (
+          aliases.some((a) => {
+            const aliasLower = a.toLowerCase();
+            return aliasLower === p || (candidateWords.length === 1 && stemMatch(aliasLower, p));
+          })
+        ) {
+          return b;
         }
       }
     }
 
-    if (p.length >= 3) {
-      const isFuzzy = words.some((w) => levenshteinDistance(p, w) <= 1);
-      if (isFuzzy) {
-        fuzzy.push({
-          ...b,
-          ghostSuffix: "",
-        });
+    // 3. Word in bank name (stem matching) - only for single word candidates
+    if (candidateWords.length === 1) {
+      const words = name.split(/\s+/).filter((w) => w.length >= 2);
+      for (const w of words) {
+        if (stemMatch(w, p)) {
+          return b;
+        }
       }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Clean bank suggestions with exact, prefix, word, and alias matching.
+ *
+ * @param {string} prefix
+ * @param {Array<{ id: number, name: string }>} banks
+ * @returns {Array<any>}
+ */
+export const BANK_KEYWORDS_SOURCE =
+  "из\\s+них|них|в\\s+банк[и]?|на\\s+банк[и]?|в\\s+сч[её]т[а]?|на\\s+сч[её]т[а]?|в\\s+кайф[ы]?|на\\s+кайф[ы]?|банк[и]?|сч[её]т[а]?|кайф[ы]?|доля|часть";
+
+export const BANK_KEYWORDS_REGEX = new RegExp(`(?:^|\\s)(?:${BANK_KEYWORDS_SOURCE})\\s*$`, "i");
+
+export const BANK_KEYWORD_HIGHLIGHT_REGEX = new RegExp(`^(?:${BANK_KEYWORDS_SOURCE})$`, "i");
+
+export const BANK_KEYWORD_SPLIT_REGEX = new RegExp(
+  `((?<![а-яa-z0-9ё])(?:${BANK_KEYWORDS_SOURCE})(?![а-яa-z0-9ё])|\\d+(?:[.,]\\d+)?|[+\\-*/]|\\s+|[^\\s\\d+\\-*/]+)`,
+  "gi",
+);
+
+export function getBankSuggestions(prefix, banks = []) {
+  if (!banks?.length) return [];
+  const p = (prefix || "").trim().toLowerCase();
+  const isGenericBankKeyword = BANK_KEYWORD_HIGHLIGHT_REGEX.test(p);
+  if (!p || isGenericBankKeyword) {
+    return banks.map((b) => ({
+      ...b,
+      matchedAlias: null,
+    }));
+  }
+  const startsWith = [];
+  const wordsStartsWith = [];
+  const aliasMatched = [];
+  const includes = [];
+
+  for (const b of banks) {
+    const name = b.name.toLowerCase();
+
+    // 1. Exact or startsWith
+    if (name.startsWith(p)) {
+      startsWith.push({
+        ...b,
+        matchedAlias: null,
+      });
+      continue;
+    }
+
+    // 2. Word in bank name starts with prefix or stem matches
+    const words = name.split(/\s+/).filter((w) => w.length >= 2);
+    const matchedWord = words.find((w) => stemMatch(w, p));
+    if (matchedWord) {
+      wordsStartsWith.push({
+        ...b,
+        matchedAlias: b.name,
+      });
+      continue;
+    }
+
+    // 3. Bank aliases
+    let aliasFound = false;
+    for (const [canonical, aliases] of Object.entries(BANK_ALIASES)) {
+      if (name.includes(canonical.toLowerCase()) || canonical.toLowerCase().includes(name)) {
+        const found = aliases.find((a) => a.startsWith(p) || a.includes(p) || stemMatch(a, p));
+        if (found) {
+          aliasMatched.push({
+            ...b,
+            matchedAlias: found,
+          });
+          aliasFound = true;
+          break;
+        }
+      }
+    }
+    if (aliasFound) continue;
+
+    // 4. Includes
+    if (name.includes(p)) {
+      includes.push({
+        ...b,
+        matchedAlias: null,
+      });
     }
   }
 
   const seen = new Set();
   const results = [];
-  for (const item of [...startsWith, ...includes, ...aliasMatched, ...fuzzy]) {
+  for (const item of [...startsWith, ...wordsStartsWith, ...aliasMatched, ...includes]) {
     if (!seen.has(item.id)) {
       seen.add(item.id);
       results.push(item);
@@ -1229,105 +662,282 @@ export function getBankSuggestions(prefix, banks) {
 }
 
 /**
- * Returns date suggestions matching a prefix.
+ * Matches category in token list or single word against categories and aliases.
+ *
+ * @param {string[]} tokens
+ * @param {Array<{ id: number, name: string, type: string }>} categories
+ * @returns {{ category: any, matchedIndices: number[], matchedWord: string } | null}
  */
-export function getDateSuggestions(prefix) {
-  if (!prefix?.trim()) return [];
-  const p = prefix.trim().toLowerCase();
-  const today = new Date();
-  const suggestions = [];
+export function matchCategory(tokens, categories = []) {
+  if (!tokens?.length || !categories?.length) return null;
 
-  // Вчера
-  if ("вчера".startsWith(p)) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - 1);
-    suggestions.push({
-      id: "yesterday",
-      label: "Вчера",
-      date: getLocalDateString(d),
-      ghostSuffix: "вчера".slice(p.length),
-    });
-  }
+  // Build n-gram candidates (up to 3 words)
+  for (let len = Math.min(3, tokens.length); len >= 1; len--) {
+    for (let i = 0; i <= tokens.length - len; i++) {
+      const slice = tokens.slice(i, i + len);
+      const text = slice.join(" ").toLowerCase().trim();
+      const indices = Array.from({ length: len }, (_, k) => i + k);
 
-  // Позавчера
-  if ("позавчера".startsWith(p)) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - 2);
-    suggestions.push({
-      id: "before_yesterday",
-      label: "Позавчера",
-      date: getLocalDateString(d),
-      ghostSuffix: "позавчера".slice(p.length),
-    });
-  }
+      // Exact match with category name
+      for (const cat of categories) {
+        if (cat.name.toLowerCase() === text) {
+          return { category: cat, matchedIndices: indices, matchedWord: cat.name };
+        }
+      }
 
-  // Сегодня
-  if ("сегодня".startsWith(p)) {
-    suggestions.push({
-      id: "today",
-      label: "Сегодня",
-      date: getLocalDateString(today),
-      ghostSuffix: "сегодня".slice(p.length),
-    });
-  }
-
-  // Check weekdays
-  for (const [dayName, dayNum] of Object.entries(WEEKDAYS)) {
-    if (dayName.startsWith(p) && dayName.length > 2) {
-      const currentDay = today.getDay();
-      let diff = currentDay - dayNum;
-      if (diff <= 0) diff += 7;
-      const d = new Date(today);
-      d.setDate(d.getDate() - diff);
-      const capName = dayName[0].toUpperCase() + dayName.slice(1);
-      suggestions.push({
-        id: `weekday_${dayNum}`,
-        label: `${capName} (${d.getDate()}.${String(d.getMonth() + 1).padStart(2, "0")})`,
-        date: getLocalDateString(d),
-        ghostSuffix: dayName.slice(p.length),
-      });
-      break;
-    }
-  }
-
-  // Natural month format e.g. "5 окт" or "5 октября"
-  const monthMatch = p.match(/^(\d{1,2})\s*([а-яё]*)$/i);
-  if (monthMatch && monthMatch[2].length >= 2) {
-    const day = Number.parseInt(monthMatch[1], 10);
-    const mStr = monthMatch[2].toLowerCase();
-    for (const [mName, mNum] of Object.entries(MONTH_NAMES)) {
-      if (mName.startsWith(mStr) && day >= 1 && day <= 31) {
-        const year = today.getFullYear();
-        const formatted = `${year}-${String(mNum).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-        const capMonth = mName[0].toUpperCase() + mName.slice(1);
-        suggestions.push({
-          id: `custom_month_${mNum}`,
-          label: `${day} ${capMonth} (${day}.${String(mNum).padStart(2, "0")})`,
-          date: formatted,
-          ghostSuffix: mName.slice(mStr.length),
-        });
-        break;
+      // Match with alias dictionary
+      for (const cat of categories) {
+        const aliases = CATEGORY_ALIASES[cat.name] || [];
+        if (aliases.some((a) => a.toLowerCase() === text)) {
+          return { category: cat, matchedIndices: indices, matchedWord: cat.name };
+        }
       }
     }
   }
 
-  // DD.MM format
-  const dateMatch = p.match(/^(\d{1,2})(?:\.(\d{0,2}))?$/);
-  if (dateMatch) {
-    const day = Number.parseInt(dateMatch[1], 10);
-    const month = dateMatch[2] ? Number.parseInt(dateMatch[2], 10) : today.getMonth() + 1;
-    const year = today.getFullYear();
+  return null;
+}
 
-    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-      const formatted = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      suggestions.push({
-        id: "custom_date",
-        label: `${day}.${String(month).padStart(2, "0")}`,
-        date: formatted,
-        ghostSuffix: "",
-      });
+/**
+ * Matches all banks in token list or single word against banks and aliases.
+ *
+ * @param {string[]} tokens
+ * @param {Array<{ id: number, name: string }>} banks
+ * @returns {Array<{ bank: any, matchedIndices: number[], matchedWord: string }>}
+ */
+export function matchBanks(tokens, banks = []) {
+  if (!tokens?.length || !banks?.length) return [];
+
+  const matched = [];
+  const matchedBankIds = new Set();
+  const matchedTokenIndices = new Set();
+
+  for (let len = Math.min(2, tokens.length); len >= 1; len--) {
+    for (let i = 0; i <= tokens.length - len; i++) {
+      let alreadyUsed = false;
+      for (let k = 0; k < len; k++) {
+        if (matchedTokenIndices.has(i + k)) {
+          alreadyUsed = true;
+          break;
+        }
+      }
+      if (alreadyUsed) continue;
+
+      const slice = tokens.slice(i, i + len);
+      const text = slice.join(" ").toLowerCase().trim();
+
+      const bank = findBankMatch(text, banks, matchedBankIds);
+      if (bank) {
+        matchedBankIds.add(bank.id);
+        const indices = Array.from({ length: len }, (_, k) => i + k);
+        for (const idx of indices) {
+          matchedTokenIndices.add(idx);
+        }
+        matched.push({
+          bank,
+          matchedIndices: indices,
+          matchedWord: bank.name,
+        });
+      }
     }
   }
 
-  return suggestions;
+  return matched;
+}
+
+/**
+ * Matches single bank in token list (backwards compatibility).
+ *
+ * @param {string[]} tokens
+ * @param {Array<{ id: number, name: string }>} banks
+ * @returns {{ bank: any, matchedIndices: number[], matchedWord: string } | null}
+ */
+export function matchBank(tokens, banks = []) {
+  const matches = matchBanks(tokens, banks);
+  return matches.length > 0 ? matches[0] : null;
+}
+
+/**
+ * Main parser: parses arbitrary order input string into structured fields.
+ * Supports: amount expressions (+/-), category, bank accounts, "из них X" part in bank, and comment.
+ * Text date parsing is intentionally excluded.
+ *
+ * @param {{ input: string, categories: any[], banks: any[], type: "expense" | "income" }} opts
+ * @returns {{ amount: number | null, mathBreakdown: string | null, category_id: number | null, category_name: string | null, bank_id: number | null, bank_name: string | null, bank_ids: number[], bank_names: string[], bank_amount: number | null, banks: Array<{ id: number, name: string }>, comment: string }}
+ */
+export function parseSmartInput({ input = "", categories = [], banks = [], type = "expense" }) {
+  const trimmed = input.trim();
+  const currentCategories = categories.filter((c) => c.type === type);
+
+  if (!trimmed) {
+    const defaultCat = currentCategories[0];
+    return {
+      amount: null,
+      mathBreakdown: null,
+      category_id: defaultCat ? defaultCat.id : null,
+      category_name: defaultCat ? defaultCat.name : null,
+      bank_id: null,
+      bank_name: null,
+      bank_ids: [],
+      bank_names: [],
+      bank_amount: null,
+      banks: [],
+      comment: "",
+    };
+  }
+
+  // Pre-normalize currency symbols and spaces within numbers (e.g. 1 000 -> 1000)
+  let text = trimmed.replace(/\b(\d{1,3})\s+(\d{3})(?!\d)/g, "$1$2");
+  text = text.replace(/(\d+(?:[.,]\d+)?)\s*(?:₽|руб(?:л[ейя])?|р(?=\s|$)|rur|rub)/gi, "$1 ");
+
+  // 1. Extract bank amount expressions if present (prefix or postfix synonyms)
+  let extractedBankAmount = null;
+  const bankAmountPrefixRegex =
+    /(?:^|\s)(?:из\s+них|в\s+банк[и]?|на\s+банк[и]?|в\s+сч[её]т[а]?|на\s+сч[её]т[а]?|в\s+кайф[ы]?|на\s+кайф[ы]?|банк[и]?|сч[её]т[а]?|кайф[ы]?|доля|часть)\s*[:=-]?\s*(\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*)(?:\s*(?:₽|руб(?:л[ейя])?|р|rur|rub))?(?:\s|$)/i;
+  const bankAmountPostfixRegex =
+    /(?:^|\s)(\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*)(?:\s*(?:₽|руб(?:л[ейя])?|р|rur|rub))?\s+(?:из\s+них|в\s+банк[и]?|на\s+банк[и]?|в\s+сч[её]т[а]?|на\s+сч[её]т[а]?|в\s+кайф[ы]?|на\s+кайф[ы]?|банк[и]?|сч[её]т[а]?|кайф[ы]?|доля|часть)(?:\s|$)/i;
+
+  const prefixMatch = text.match(bankAmountPrefixRegex);
+  const postfixMatch = !prefixMatch ? text.match(bankAmountPostfixRegex) : null;
+  const bankAmountMatch = prefixMatch || postfixMatch;
+
+  if (bankAmountMatch) {
+    const bankMathRaw = bankAmountMatch[1];
+    const evaluatedBankAmount = evaluateMathExpression(bankMathRaw);
+    if (evaluatedBankAmount.value !== null && evaluatedBankAmount.value > 0) {
+      extractedBankAmount = evaluatedBankAmount.value;
+      text = text.replace(bankAmountMatch[0], " ").trim();
+    }
+  }
+
+  // 2. Extract compound or standalone math expressions for total amount
+  let amount = null;
+  let mathBreakdown = null;
+
+  // Look for compound arithmetic first: "1500 + 300 - 50"
+  const compoundMathRegex = /(?:^|\s)(\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)+)(?:\s|$)/;
+  const compoundMatch = text.match(compoundMathRegex);
+
+  if (compoundMatch) {
+    const mathRaw = compoundMatch[1];
+    const evaluated = evaluateMathExpression(mathRaw);
+    if (evaluated.value !== null) {
+      amount = evaluated.value;
+      mathBreakdown = evaluated.expression;
+      text = text.replace(mathRaw, " ").trim();
+    }
+  }
+
+  // If no compound expression, extract first standalone number
+  if (amount === null) {
+    const singleNumberRegex = /(?:^|\s)(\d+(?:[.,]\d+)?)(?:\s|$)/;
+    const singleMatch = text.match(singleNumberRegex);
+    if (singleMatch) {
+      const numRaw = singleMatch[1];
+      const evaluated = evaluateMathExpression(numRaw);
+      if (evaluated.value !== null) {
+        amount = evaluated.value;
+        mathBreakdown = null;
+        text = text.replace(numRaw, " ").trim();
+      }
+    }
+  }
+
+  // 3. Tokenize words for Category and Banks extraction
+  const rawTokens = text.split(/\s+/).filter(Boolean);
+  const cleanTokens = rawTokens.map((t) => t.replace(/^[^\wа-яёА-ЯЁ0-9]+|[^\wа-яёА-ЯЁ0-9]+$/g, ""));
+
+  const matchedIndices = new Set();
+
+  // 4. Match Banks (if expense)
+  const matchedBankResults = [];
+  if (type === "expense") {
+    const bankResults = matchBanks(cleanTokens, banks);
+    for (const res of bankResults) {
+      matchedBankResults.push(res);
+      for (const idx of res.matchedIndices) {
+        matchedIndices.add(idx);
+      }
+    }
+  }
+
+  const matchedBanksList = matchedBankResults.map((r) => r.bank);
+  const bank_ids = matchedBanksList.map((b) => b.id);
+  const bank_names = matchedBanksList.map((b) => b.name);
+  const bank_id = bank_ids[0] || null;
+  const bank_name = bank_names.join(", ") || null;
+
+  // 4b. If bank(s) matched and extractedBankAmount not found, check if a number appears after bank tokens
+  if (bank_ids.length > 0 && extractedBankAmount === null && matchedIndices.size > 0) {
+    const maxBankIndex = Math.max(...matchedIndices);
+    // Find trailing numeric token after banks
+    for (let i = maxBankIndex + 1; i < rawTokens.length; i++) {
+      const candidate = cleanTokens[i].replace(/(?:₽|руб(?:л[ейя])?|р|rur|rub)$/i, "");
+      if (/^\d+(?:[.,]\d+)?$/.test(candidate)) {
+        const val = Number(candidate.replace(",", "."));
+        if (!Number.isNaN(val) && val > 0) {
+          extractedBankAmount = val;
+          matchedIndices.add(i);
+          break;
+        }
+      }
+    }
+  }
+
+  // 5. Match Category (excluding already matched bank and amount tokens)
+  const categoryTokens = cleanTokens.map((t, idx) => (matchedIndices.has(idx) ? "" : t));
+  const categoryResult = matchCategory(categoryTokens, currentCategories);
+
+  let category_id = null;
+  let category_name = null;
+  if (categoryResult) {
+    category_id = categoryResult.category.id;
+    category_name = categoryResult.category.name;
+    for (const idx of categoryResult.matchedIndices) {
+      matchedIndices.add(idx);
+    }
+  }
+
+  // 6. Remaining tokens form the comment
+  const commentTokens = [];
+  for (let i = 0; i < rawTokens.length; i++) {
+    if (!matchedIndices.has(i)) {
+      commentTokens.push(rawTokens[i]);
+    }
+  }
+
+  const rawComment = commentTokens.join(" ");
+  // Clean up any orphan bank keywords from comment
+  const comment = rawComment
+    .replace(
+      /(?:^|\s)(?:из\s+них|в\s+банк[и]?|на\s+банк[и]?|в\s+сч[её]т[а]?|на\s+сч[её]т[а]?|в\s+кайф[ы]?|на\s+кайф[ы]?|банк[и]?|сч[её]т[а]?|кайф[ы]?|доля|часть)(?:\s|$)/gi,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Calculate final bank_amount:
+  // If bank(s) are chosen:
+  // - If bank amount was specified (via phrase or trailing number), bank_amount = extractedBankAmount
+  // - Else if no bank amount specified, but banks are chosen, bank_amount = amount
+  // If no banks:
+  // - bank_amount = null
+  let bank_amount = null;
+  if (bank_ids.length > 0) {
+    bank_amount = extractedBankAmount !== null ? extractedBankAmount : amount;
+  }
+
+  return {
+    amount,
+    mathBreakdown,
+    category_id,
+    category_name,
+    bank_id,
+    bank_name,
+    bank_ids,
+    bank_names,
+    bank_amount,
+    banks: matchedBanksList,
+    comment,
+  };
 }

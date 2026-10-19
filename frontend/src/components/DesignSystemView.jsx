@@ -10,7 +10,7 @@ import { OperationsFilters } from "./OperationsFilters";
 import { PageColumn, PageContainer } from "./PageLayout/index.jsx";
 import { SectionBlock } from "./SectionBlock";
 
-export function UiLibraryView() {
+export function DesignSystemView() {
   // Interactive controls state
   const [btnActive, setBtnActive] = useState(false);
   const [textValue, setTextValue] = useState("Тестовое значение");
@@ -94,7 +94,7 @@ export function UiLibraryView() {
     <div className="a-flex a-flex-col a-gap-48 a-w-full">
       {/* Header Bar */}
       <div className="a-flex a-flex-col a-gap-4">
-        <h1 className="a-text-h1 a-clr-text-primary">Библиотека компонентов</h1>
+        <h1 className="a-text-h1 a-clr-text-primary">Дизайн-система</h1>
       </div>
 
       {/* Main Content Area */}
@@ -821,6 +821,7 @@ export function UiLibraryView() {
                   icon="ri-shopping-cart-line"
                   currentValue={38400}
                   previousValue={32000}
+                  controlValue={32000}
                   activeTab="current"
                   diffValue={6400}
                   warning={true}
@@ -835,6 +836,7 @@ export function UiLibraryView() {
                   icon="ri-wallet-3-line"
                   currentValue={180000}
                   previousValue={175000}
+                  controlValue={175000}
                   activeTab="current"
                   diffValue={5000}
                   warning={false}
@@ -1058,3 +1060,6 @@ export function UiLibraryView() {
     </div>
   );
 }
+
+export const UiLibraryView = DesignSystemView;
+export default DesignSystemView;

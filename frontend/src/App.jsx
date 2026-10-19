@@ -1,22 +1,48 @@
-import { useEffect, useMemo, useState } from "react";
-import { BackupView } from "./components/BackupView";
-import { DashboardView } from "./components/DashboardView";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { KaifBalanceView } from "./components/KaifBalanceView";
-import OperationsView from "./components/OperationsView";
+import { GoogleSheetsSyncIndicator } from "./components/GoogleSheetsSyncIndicator";
 import { PageLayout } from "./components/PageLayout/index.jsx";
-import SavingsView from "./components/SavingsView";
-import { UiLibraryView } from "./components/UiLibraryView";
+import { UndoToast } from "./components/UndoToast";
+import { OperationsHistoryProvider } from "./context/OperationsHistoryContext";
 import { useSavings } from "./hooks/useSavings";
+import { useTripleKey } from "./hooks/useTripleKey";
+import { navigate, useCurrentPath } from "./router";
 import { formatNumber } from "./utils";
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState("month");
-  const [visitedTabs, setVisitedTabs] = useState(() => new Set(["month"]));
+// Lazy-loaded views for code splitting
+const DashboardView = lazy(() => import("./components/DashboardView"));
+const KaifBalanceView = lazy(() => import("./components/KaifBalanceView"));
+const SavingsView = lazy(() => import("./components/SavingsView"));
+const OperationsView = lazy(() => import("./components/OperationsView"));
+const SettingsView = lazy(() => import("./components/SettingsView"));
 
+export default function App() {
+  const currentPath = useCurrentPath();
+  const [isSettingsUnlocked, setIsSettingsUnlocked] = useState(false);
+
+  // Active tab determination based on URL path
+  const activeTab = useMemo(() => {
+    if (currentPath === "/kaif") return "kaif";
+    if (currentPath === "/savings") return "savings";
+    if (currentPath === "/operations") return "operations";
+    if (currentPath.startsWith("/settings")) return "settings";
+    return "month";
+  }, [currentPath]);
+
+  // If user navigated directly to /settings, unlock settings tab for this session
   useEffect(() => {
-    setVisitedTabs((prev) => new Set(prev).add(activeTab));
-  }, [activeTab]);
+    if (currentPath.startsWith("/settings")) {
+      setIsSettingsUnlocked(true);
+    }
+  }, [currentPath]);
+
+  // Triple-d key trigger to open secret settings
+  useTripleKey("d", () => {
+    setIsSettingsUnlocked(true);
+    navigate("/settings");
+  });
+
+  const isSettingsVisible = isSettingsUnlocked || currentPath.startsWith("/settings");
 
   // Global Keyboard Shortcuts for Native-Feel Experience
   useEffect(() => {
@@ -26,7 +52,8 @@ export default function App() {
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
         target.tagName === "SELECT" ||
-        target.isContentEditable;
+        target.isContentEditable ||
+        target.closest?.('input, textarea, select, [contenteditable="true"]');
 
       if (e.key === "Escape") {
         if (isInput) {
@@ -35,27 +62,23 @@ export default function App() {
         return;
       }
 
-      if (isInput) return;
+      if (isInput || e.ctrlKey || e.metaKey) return;
 
-      if (e.key === "0" || e.key === "1") {
-        setActiveTab("month");
+      if (!e.altKey && (e.key === "0" || e.key === "1")) {
+        navigate("/month");
         setTimeout(() => {
           const smartInput = document.querySelector(".o-smart-entry-input");
           smartInput?.focus();
         }, 50);
-      } else if (e.key === "2") {
-        setActiveTab("kaif");
-      } else if (e.key === "3") {
-        setActiveTab("savings");
-      } else if (e.key === "4") {
-        setActiveTab("operations");
-      } else if (e.key === "5") {
-        setActiveTab("backup");
-      } else if (e.key === "6" || e.key === "l" || e.key === "L") {
-        setActiveTab("library");
-      } else if (e.key === "n" || e.key === "N" || (e.altKey && e.key.toLowerCase() === "n")) {
+      } else if (!e.altKey && e.key === "2") {
+        navigate("/kaif");
+      } else if (!e.altKey && e.key === "3") {
+        navigate("/savings");
+      } else if (!e.altKey && e.key === "4") {
+        navigate("/operations");
+      } else if (e.key === "n" || e.key === "N") {
         e.preventDefault();
-        setActiveTab("month");
+        navigate("/month");
         setTimeout(() => {
           const smartInput = document.querySelector(".o-smart-entry-input");
           smartInput?.focus();
@@ -95,7 +118,7 @@ export default function App() {
           className="m-nav-item"
           data-size="sd"
           data-active={activeTab === "month"}
-          onClick={() => setActiveTab("month")}
+          onClick={() => navigate("/month")}
         >
           Текущий месяц
         </span>
@@ -103,7 +126,7 @@ export default function App() {
           className="m-nav-item"
           data-size="sd"
           data-active={activeTab === "kaif"}
-          onClick={() => setActiveTab("kaif")}
+          onClick={() => navigate("/kaif")}
         >
           Кайф-баланс
         </span>
@@ -111,7 +134,7 @@ export default function App() {
           className="m-nav-item"
           data-size="sd"
           data-active={activeTab === "savings"}
-          onClick={() => setActiveTab("savings")}
+          onClick={() => navigate("/savings")}
         >
           Накопления
         </span>
@@ -119,82 +142,51 @@ export default function App() {
           className="m-nav-item"
           data-size="sd"
           data-active={activeTab === "operations"}
-          onClick={() => setActiveTab("operations")}
+          onClick={() => navigate("/operations")}
         >
           Все операции
         </span>
-        <span
-          className="m-nav-item"
-          data-size="sd"
-          data-active={activeTab === "backup"}
-          onClick={() => setActiveTab("backup")}
-        >
-          Бэкап
-        </span>
-        <span
-          className="m-nav-item"
-          data-size="sd"
-          data-active={activeTab === "library"}
-          onClick={() => setActiveTab("library")}
-        >
-          UI Library
-        </span>
-      </div>
-      {isSavingsLoading && !balanceInfo ? (
-        <div className="a-text-sd a-font-regular a-clr-text-secondary">Загрузка...</div>
-      ) : balanceInfo ? (
-        <div className="a-text-sd a-font-regular a-clr-text-primary a-flex a-items-baseline">
-          <span>{balanceInfo.formattedBalance}</span>
+        {isSettingsVisible && (
           <span
-            className={`a-text-sd a-font-regular ${balanceInfo.diffColorClass} a-mt-0`}
-            style={{ marginLeft: "var(--spc-8)" }}
+            className="m-nav-item"
+            data-size="sd"
+            data-active={activeTab === "settings"}
+            onClick={() => navigate("/settings")}
           >
-            {balanceInfo.formattedDiff}
+            Настройки
           </span>
-        </div>
-      ) : null}
+        )}
+      </div>
+      <div className="a-flex a-items-center a-gap-20">
+        <GoogleSheetsSyncIndicator />
+        {isSavingsLoading && !balanceInfo ? (
+          <div className="a-text-sd a-font-regular a-clr-text-secondary">Загрузка...</div>
+        ) : balanceInfo ? (
+          <div className="a-text-sd a-font-regular a-clr-text-primary a-flex a-items-baseline a-gap-8">
+            <span>{balanceInfo.formattedBalance}</span>
+            <span className={`a-text-sd a-font-regular ${balanceInfo.diffColorClass} a-mt-0`}>
+              {balanceInfo.formattedDiff}
+            </span>
+          </div>
+        ) : null}
+      </div>
     </header>
   );
 
   return (
     <ErrorBoundary>
-      <PageLayout header={_header}>
-        {visitedTabs.has("month") && (
-          <div style={{ display: activeTab === "month" ? "block" : "none", width: "100%" }}>
-            <DashboardView />
-          </div>
-        )}
-
-        {visitedTabs.has("kaif") && (
-          <div style={{ display: activeTab === "kaif" ? "block" : "none", width: "100%" }}>
-            <KaifBalanceView />
-          </div>
-        )}
-
-        {visitedTabs.has("savings") && (
-          <div style={{ display: activeTab === "savings" ? "block" : "none", width: "100%" }}>
-            <SavingsView />
-          </div>
-        )}
-
-        {visitedTabs.has("operations") && (
-          <div style={{ display: activeTab === "operations" ? "block" : "none", width: "100%" }}>
-            <OperationsView />
-          </div>
-        )}
-
-        {visitedTabs.has("backup") && (
-          <div style={{ display: activeTab === "backup" ? "block" : "none", width: "100%" }}>
-            <BackupView />
-          </div>
-        )}
-
-        {visitedTabs.has("library") && (
-          <div style={{ display: activeTab === "library" ? "block" : "none", width: "100%" }}>
-            <UiLibraryView />
-          </div>
-        )}
-      </PageLayout>
+      <OperationsHistoryProvider>
+        <PageLayout header={_header}>
+          <Suspense fallback={null}>
+            {activeTab === "month" && <DashboardView />}
+            {activeTab === "kaif" && <KaifBalanceView />}
+            {activeTab === "savings" && <SavingsView />}
+            {activeTab === "operations" && <OperationsView />}
+            {activeTab === "settings" && <SettingsView />}
+          </Suspense>
+        </PageLayout>
+        <UndoToast />
+      </OperationsHistoryProvider>
     </ErrorBoundary>
   );
 }

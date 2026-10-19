@@ -3,11 +3,9 @@ trigger: model_decision
 description: Frontend and design tasks
 ---
 
-context  Давай пройдёмся ещё раз по первой фазе, вот описание минимальной базы компонентов, которая должна лежать в основе проекта, но может быть расширяемой
-
 # Design System & UI Architecture Rules
 
-This project strictly follows an Atomic Design-based architecture for UI components. 
+This project strictly follows an Atomic Design-based architecture for UI components.
 
 ## 🏗 Core Principle: Inheritance and Extensibility
 This structure is an **extensible variable**. It is strictly forbidden to create new, fundamental, unrelated element types. Any new UI component must be created exclusively by **inheriting and extending** the established base types (tokens, molecules, or organisms), strictly adhering to their size rules and context modes.
@@ -25,9 +23,10 @@ Colors are classified by their application type. Each type has its own priority 
 - **Borders:** `Primary`, `Secondary/Muted`, `Interactive` (control borders), `Semantic`.
 
 ### Typography
-Styles are monolithic (including font size, line-height, and font weight). 
-- **Headings:** `h1`, `h2`, `h3`, `h4`.
-- **Body Text:** `l`, `ld` (dense), `m`, `md` (dense), `s`, `sd` (dense).
+Styles are monolithic (including font size, line-height, and font weight). Статичные размеры (без адаптива).
+- **Headings:** `h1` (32px / 40px), `h2` (22px / 28px).
+- **Body Text:** `l` (24px / 36px), `ld` (24px / 32px), `m` (18px / 24px), `md` (18px / 22px), `s` (16px / 24px), `sd` (16px / 20px).
+- **Font Weights:** `regular` (400), `bold` (700).
 
 ### Spacing
 Spacing is based on a fixed, simple pixel scale defined directly in tokens. This single scale applies identically to both horizontal and vertical spacing (margins, paddings, gaps, gutters).
@@ -69,3 +68,13 @@ Complex independent blocks, assembled from molecules. They inherit spacing and t
 - **Form:** Assembly of inputs, labels, and action buttons.
 - **Lists:** Ordered and Unordered lists.
 - **Table:** Complex assembly of `TH` and `TD` molecules.
+
+---
+
+## Global Design Constraints
+- **Minimalistic Styling:** Use constraint of means.
+- **Spacing Hierarchy:** Use spacing instead of visual dividers.
+- **Consistency:** Similar logic -> similar looks.
+- **Readability:** High contrast, legible fonts.
+- **Layout Stability:** Predictable, zero layout shifts.
+- **Atomic Naming:** strictly use `--clr-*`, `--spc-*`, `a-*`, `m-*`, `o-*`.

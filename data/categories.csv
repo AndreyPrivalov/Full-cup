@@ -1,0 +1,20 @@
+id,name,type
+1,Быт,expense
+2,Дорога,expense
+3,Другое,expense
+4,Здоровье,expense
+5,Кафе и рестораны,expense
+6,Красота,expense
+7,Образование,expense
+8,Обустройство дома,expense
+9,Одежда,expense
+10,Подарок,expense
+11,Продукты,expense
+12,Развлечения и хобби,expense
+13,Техника,expense
+14,Другое,income
+15,Инвестиции,income
+16,Подарок,income
+17,Работа,income
+18,Родители,income
+19,Стипендия,income

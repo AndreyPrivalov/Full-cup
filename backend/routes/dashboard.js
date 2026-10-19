@@ -1,6 +1,12 @@
 import { eq, sql } from "drizzle-orm";
 import express from "express";
-import { banks, categories, transactions } from "shared/schema.js";
+import {
+  banks,
+  categories,
+  getCurrentMonthRange,
+  getPreviousMonthRange,
+  transactions,
+} from "shared";
 import { db } from "../db/index.js";
 import { apiHandler } from "../utils/apiHandler.js";
 
@@ -49,8 +55,8 @@ router.get(
       return `${y}-${m}-${day}`;
     };
 
-    const currentMonthStart = formatDate(new Date(currentYear, currentMonth, 1));
-    const currentMonthEnd = formatDate(new Date(currentYear, currentMonth + 1, 0));
+    const { start: currentMonthStart, end: currentMonthEnd } = getCurrentMonthRange(today);
+    const { start: prevMonthStart, end: prevMonthEnd } = getPreviousMonthRange(today);
 
     let controlPeriodStart;
     let controlPeriodEnd;
@@ -77,12 +83,14 @@ router.get(
       controlPeriodDivider = 12;
     } else {
       // prev_month fallback
-      controlPeriodStart = formatDate(new Date(currentYear, currentMonth - 1, 1));
-      controlPeriodEnd = formatDate(new Date(currentYear, currentMonth, 0));
+      controlPeriodStart = prevMonthStart;
+      controlPeriodEnd = prevMonthEnd;
     }
 
-    const minDate = controlPeriodStart < currentMonthStart ? controlPeriodStart : currentMonthStart;
-    const maxDate = controlPeriodEnd > currentMonthEnd ? controlPeriodEnd : currentMonthEnd;
+    const allStartDates = [currentMonthStart, prevMonthStart, controlPeriodStart];
+    const minDate = allStartDates.reduce((min, d) => (d < min ? d : min), allStartDates[0]);
+    const allEndDates = [currentMonthEnd, prevMonthEnd, controlPeriodEnd];
+    const maxDate = allEndDates.reduce((max, d) => (d > max ? d : max), allEndDates[0]);
 
     const getCategoriesData = (type) => {
       return db
@@ -94,6 +102,10 @@ router.get(
               Number,
             ),
           previous_month:
+            sql`COALESCE(SUM(CASE WHEN ${transactions.date} >= ${prevMonthStart} AND ${transactions.date} <= ${prevMonthEnd} THEN ${transactions.amount} ELSE 0 END), 0)`.mapWith(
+              Number,
+            ),
+          control_value:
             sql`ROUND(COALESCE(SUM(CASE WHEN ${transactions.date} >= ${controlPeriodStart} AND ${transactions.date} <= ${controlPeriodEnd} THEN ${transactions.amount} ELSE 0 END), 0) / ${controlPeriodDivider})`.mapWith(
               Number,
             ),
@@ -116,14 +128,18 @@ router.get(
         id: banks.id,
         name: banks.name,
         month_limit: banks.month_limit,
-        spent_this_month: sql`COALESCE(SUM(${transactions.amount}), 0)`.mapWith(Number),
+        spent_this_month: sql`COALESCE((
+          SELECT SUM(tb.amount)
+          FROM transaction_banks tb
+          JOIN transactions t ON t.id = tb.transaction_id
+          WHERE tb.bank_id = banks.id
+            AND t.type = 'expense'
+            AND t.date >= ${currentMonthStart}
+            AND t.date <= ${currentMonthEnd}
+        ), 0)`.mapWith(Number),
       })
       .from(banks)
-      .leftJoin(
-        transactions,
-        sql`${banks.id} = ${transactions.bank_id} AND ${transactions.type} = 'expense' AND ${transactions.date} >= ${currentMonthStart} AND ${transactions.date} <= ${currentMonthEnd}`,
-      )
-      .groupBy(banks.id)
+      .orderBy(banks.id)
       .all();
 
     const banks_result = banksRaw.map((b) => calcItemWithPercentage(b, "spent_this_month"));

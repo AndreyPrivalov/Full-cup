@@ -1,11 +1,10 @@
-import { PageColumn, PageContainer, PageGrid } from "./PageContainer.jsx";
+import { PageColumn, PageContainer } from "./PageContainer.jsx";
 
 /**
  * Global Page Layout Shell.
- * Wraps the entire page with unconstrained width, including top header, main content area,
- * and optional right sidebar.
+ * Wraps the entire page with unconstrained width, including top header and main content area.
  */
-export function PageLayout({ header, sidebar, children }) {
+export function PageLayout({ header, children }) {
   return (
     <div className="o-page-layout">
       <main className="o-page-main">
@@ -14,13 +13,11 @@ export function PageLayout({ header, sidebar, children }) {
           {children}
         </div>
       </main>
-      {sidebar && <aside className="o-page-sidebar-area">{sidebar}</aside>}
     </div>
   );
 }
 
-export { PageColumn, PageContainer, PageGrid };
+export { PageColumn, PageContainer };
 
 PageLayout.Container = PageContainer;
-PageLayout.Grid = PageGrid;
 PageLayout.Column = PageColumn;

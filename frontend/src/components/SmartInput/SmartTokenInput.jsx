@@ -1,55 +1,64 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePrevMonthLatestDate } from "../../hooks/usePrevMonthLatestDate.js";
 import {
+  BANK_KEYWORD_HIGHLIGHT_REGEX,
+  BANK_KEYWORD_SPLIT_REGEX,
+  BANK_KEYWORDS_REGEX,
   evaluateMathExpression,
   formatDateShort,
+  formatNumber,
   getBankSuggestions,
   getCategoryIcon,
   getCategorySuggestions,
-  getDateSuggestions,
   getLocalDateString,
+  matchBank,
   matchCategory,
   parseSmartInput,
+  splitBankAmount,
 } from "../../utils";
 
 /**
- * Computes native inline autocomplete completion for input.
+ * Syntax highlighter for in-place text input:
+ * Numbers are colored semantically (red for expense, green for income),
+ * operators are colored neutrally, bank keywords are grey, and regular words are standard text.
  */
-function getAutocompleteCompletion(typedPrefix, topSuggestion) {
-  if (!topSuggestion || !typedPrefix) return null;
-  const p = typedPrefix.toLowerCase();
-
-  // 1. Alias match starts with typed prefix (e.g. 'ед' -> 'еда')
-  if (topSuggestion.matchedAlias?.toLowerCase().startsWith(p)) {
-    const matched = topSuggestion.matchedAlias;
-    return {
-      completed: typedPrefix + matched.slice(typedPrefix.length),
-      selectionStart: typedPrefix.length,
-      selectionEnd: typedPrefix.length + (matched.length - typedPrefix.length),
-    };
-  }
-
-  // 2. Category name starts with typed prefix (e.g. 'каф' -> 'кафе и рестораны')
-  if (topSuggestion.name.toLowerCase().startsWith(p)) {
-    const name = topSuggestion.name;
-    return {
-      completed: typedPrefix + name.slice(typedPrefix.length),
-      selectionStart: typedPrefix.length,
-      selectionEnd: typedPrefix.length + (name.length - typedPrefix.length),
-    };
-  }
-
-  // 3. Ghost suffix from fuzzy or root match
-  if (topSuggestion.ghostSuffix) {
-    const suffix = topSuggestion.ghostSuffix;
-    return {
-      completed: typedPrefix + suffix,
-      selectionStart: typedPrefix.length,
-      selectionEnd: typedPrefix.length + suffix.length,
-    };
-  }
-
-  return null;
+function renderHighlightedText(text, operationType) {
+  if (!text) return null;
+  const parts = text.split(BANK_KEYWORD_SPLIT_REGEX).filter(Boolean);
+  let offset = 0;
+  return parts.map((part) => {
+    const key = `p-${offset}-${part}`;
+    offset += part.length;
+    if (BANK_KEYWORD_HIGHLIGHT_REGEX.test(part)) {
+      return (
+        <span key={key} className="o-smart-token-keyword">
+          {part}
+        </span>
+      );
+    }
+    if (/^\d+(?:[.,]\d+)?$/.test(part)) {
+      return (
+        <span key={key} className="o-smart-token-num" data-type={operationType}>
+          {part}
+        </span>
+      );
+    }
+    if (/^[+\-*/]$/.test(part)) {
+      return (
+        <span key={key} className="o-smart-token-op">
+          {part}
+        </span>
+      );
+    }
+    if (/^\s+$/.test(part)) {
+      return <span key={key}>{part}</span>;
+    }
+    return (
+      <span key={key} className="o-smart-token-word">
+        {part}
+      </span>
+    );
+  });
 }
 
 export function SmartTokenInput({
@@ -60,50 +69,29 @@ export function SmartTokenInput({
 }) {
   const { targetDate: prevMonthTargetDate } = usePrevMonthLatestDate();
 
-  const [amount, setAmount] = useState(null);
-  const [mathBreakdown, setMathBreakdown] = useState(null);
-  const [category, setCategory] = useState(null);
-  const [bank, setBank] = useState(null);
   // Sticky date: does not reset upon submission
   const [date, setDate] = useState(getLocalDateString());
-
-  const [currentInput, setCurrentInput] = useState("");
-  const [categoryCorrection, setCategoryCorrection] = useState(null);
-
-  // Autocomplete Dropdown State
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [activeDropdownType, setActiveDropdownType] = useState(null); // "category" | "bank" | "date"
-  const [selectedIndex, setSelectedIndex] = useState(0);
-
-  // Popover state for clicked chips
-  const [openChipMenu, setOpenChipMenu] = useState(null); // "category" | "bank" | null
   const [openDateMenu, setOpenDateMenu] = useState(false);
 
+  // List of tokens representing the formatted sentence
+  // Each token is:
+  // - { id: string, type: "text", value: string }
+  // - { id: string, type: "category", category: { id: number, name: string } }
+  // - { id: string, type: "bank", bank: { id: number, name: string } }
+  const [tokens, setTokens] = useState([{ id: "init-token", type: "text", value: "" }]);
+
+  // Dropdown state
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownType, setDropdownType] = useState(null); // "category" | "bank" | null
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [activeTokenId, setActiveTokenId] = useState("init-token");
+  const [activeWordInfo, setActiveWordInfo] = useState({ word: "", start: 0, end: 0 });
+
   const containerRef = useRef(null);
-  const inputRef = useRef(null);
-  const amountInputRef = useRef(null);
-  const chipMenuRef = useRef(null);
+  const inputRefs = useRef({});
+  const highlightRefs = useRef({});
   const dateMenuRef = useRef(null);
   const manualDateInputRef = useRef(null);
-
-  // Native text selection synchronization
-  const selectionRangeRef = useRef(null);
-  const isDeletingRef = useRef(false);
-  const userTypedPrefixRef = useRef("");
-
-  // Sync native selection range immediately before browser paint
-  useLayoutEffect(() => {
-    if (selectionRangeRef.current && inputRef.current) {
-      const [start, end] = selectionRangeRef.current;
-      inputRef.current.setSelectionRange(start, end);
-      selectionRangeRef.current = null;
-    }
-  });
-
-  // Focus input on mount
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   // Filter categories by current operationType
   const currentCategories = useMemo(
@@ -111,29 +99,44 @@ export function SmartTokenInput({
     [categories, operationType],
   );
 
-  // Reset entry state when operationType changes, but PRESERVE sticky date!
+  const [dropdownMaxHeight, setDropdownMaxHeight] = useState(null);
+
+  const updateDropdownMaxHeight = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const bottomMargin = 20; // 4px dropdown gap + 16px bottom margin
+    const available = window.innerHeight - rect.bottom - bottomMargin;
+    setDropdownMaxHeight(Math.max(150, Math.floor(available)));
+  }, []);
+
   useEffect(() => {
-    if (!operationType) return;
-    setCategory(null);
-    setAmount(null);
-    setMathBreakdown(null);
-    setBank(null);
-    setCategoryCorrection(null);
-    setCurrentInput("");
-    setDropdownOpen(false);
-    setActiveDropdownType(null);
-    setOpenChipMenu(null);
-    setOpenDateMenu(false);
-    userTypedPrefixRef.current = "";
-    inputRef.current?.focus();
+    if (!dropdownOpen) return;
+    updateDropdownMaxHeight();
+    window.addEventListener("resize", updateDropdownMaxHeight);
+    window.addEventListener("scroll", updateDropdownMaxHeight, true);
+    return () => {
+      window.removeEventListener("resize", updateDropdownMaxHeight);
+      window.removeEventListener("scroll", updateDropdownMaxHeight, true);
+    };
+  }, [dropdownOpen, updateDropdownMaxHeight]);
+
+  const prevOpTypeRef = useRef(operationType);
+  useEffect(() => {
+    if (prevOpTypeRef.current !== operationType) {
+      prevOpTypeRef.current = operationType;
+      const initId = `token-${Date.now()}`;
+      setTokens([{ id: initId, type: "text", value: "" }]);
+      setActiveTokenId(initId);
+      setDropdownType("category");
+      setDropdownOpen(true);
+      setSelectedIndex(0);
+      setTimeout(() => inputRefs.current[initId]?.focus(), 0);
+    }
   }, [operationType]);
 
-  // Handle click outside to close popovers/dropdowns
+  // Close dropdown / popovers on outside click
   useEffect(() => {
     function handleClickOutside(e) {
-      if (chipMenuRef.current && !chipMenuRef.current.contains(e.target)) {
-        setOpenChipMenu(null);
-      }
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setDropdownOpen(false);
       }
@@ -145,482 +148,486 @@ export function SmartTokenInput({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Compute suggestions based on activeDropdownType
-  const categorySuggestions = useMemo(() => {
-    if (activeDropdownType !== "category") return [];
-    const prefix = userTypedPrefixRef.current || currentInput.trim();
-    if (!prefix) {
-      return currentCategories.map((c) => ({
-        ...c,
-        matchedAlias: null,
-        wasCorrected: false,
-        ghostSuffix: "",
-      }));
-    }
-    const suggestions = getCategorySuggestions(prefix, currentCategories);
-    if (suggestions.length > 0) {
-      return suggestions;
-    }
-    return currentCategories.map((c) => ({
-      ...c,
-      matchedAlias: null,
-      wasCorrected: false,
-      ghostSuffix: "",
-    }));
-  }, [activeDropdownType, currentInput, currentCategories]);
+  // Check existing category and banks in tokens
+  const existingCategoryToken = useMemo(() => tokens.find((t) => t.type === "category"), [tokens]);
+  const bankTokens = useMemo(() => tokens.filter((t) => t.type === "bank"), [tokens]);
 
-  const bankSuggestions = useMemo(() => {
-    if (activeDropdownType !== "bank" || operationType !== "expense") return [];
-    return getBankSuggestions(currentInput, banks);
-  }, [activeDropdownType, operationType, currentInput, banks]);
-
-  const dateSuggestions = useMemo(() => {
-    if (activeDropdownType !== "date") return [];
-    return getDateSuggestions(currentInput);
-  }, [activeDropdownType, currentInput]);
-
-  const currentSuggestionsList = useMemo(() => {
-    if (activeDropdownType === "category") return categorySuggestions;
-    if (activeDropdownType === "bank") return bankSuggestions;
-    if (activeDropdownType === "date") return dateSuggestions;
-    return [];
-  }, [activeDropdownType, categorySuggestions, bankSuggestions, dateSuggestions]);
-
-  // Confirm category selection (Step 5: turns into a badge)
-  const confirmCategory = useCallback((cat) => {
-    setCategory(cat);
-    if (cat.wasCorrected && cat.originalWord) {
-      setCategoryCorrection({
-        wasCorrected: true,
-        originalWord: cat.originalWord,
-        matchedWord: cat.name,
-      });
-    } else {
-      setCategoryCorrection(null);
-    }
-    setCurrentInput("");
-    userTypedPrefixRef.current = "";
-    setDropdownOpen(false);
-    setActiveDropdownType(null);
-    setSelectedIndex(0);
-    inputRef.current?.focus();
-  }, []);
-
-  // Confirm bank selection
-  const confirmBank = useCallback((b) => {
-    setBank(b);
-    setCurrentInput("");
-    setDropdownOpen(false);
-    setActiveDropdownType(null);
-    setSelectedIndex(0);
-    inputRef.current?.focus();
-  }, []);
-
-  // Confirm date selection
-  const confirmDate = useCallback((d) => {
-    setDate(d.date);
-    setCurrentInput("");
-    setDropdownOpen(false);
-    setActiveDropdownType(null);
-    setSelectedIndex(0);
-    inputRef.current?.focus();
-  }, []);
-
-  // Final submission handler
-  const handleTriggerSubmit = useCallback(
-    (commentOverride) => {
-      let finalAmount = amount;
-      let finalComment = commentOverride !== undefined ? commentOverride : currentInput.trim();
-
-      if (finalAmount === null && currentInput.trim()) {
-        const evalAmount = evaluateMathExpression(currentInput.trim());
-        if (evalAmount.value !== null) {
-          finalAmount = String(evalAmount.value);
-          finalComment = "";
-        }
-      }
-
-      const numAmount = Number(finalAmount);
-      if (!numAmount || Number.isNaN(numAmount)) {
-        return;
-      }
-
-      // Do not allow submit without category
-      if (!category && !currentCategories.length) {
-        return;
-      }
-      const finalCat = category || currentCategories[0];
-      if (!finalCat) return;
-
-      onSubmit({
-        amount: numAmount,
-        category_id: finalCat.id,
-        bank_id: operationType === "expense" && bank ? bank.id : null,
-        date: date || getLocalDateString(),
-        comment: finalComment,
-      });
-
-      // Clear entry state after submit, BUT KEEP STICKY DATE!
-      setAmount(null);
-      setMathBreakdown(null);
-      setCategory(null);
-      setBank(null);
-      // NOTE: date and dateIsCustom are preserved!
-      setCurrentInput("");
-      userTypedPrefixRef.current = "";
-      setCategoryCorrection(null);
-      setDropdownOpen(false);
-      setActiveDropdownType(null);
-      setOpenChipMenu(null);
-      setOpenDateMenu(false);
-      inputRef.current?.focus();
-    },
-    [amount, category, currentCategories, bank, date, operationType, currentInput, onSubmit],
+  // Compute all text content from text tokens for math calculation
+  const allText = useMemo(
+    () =>
+      tokens
+        .filter((t) => t.type === "text")
+        .map((t) => t.value)
+        .join(" "),
+    [tokens],
   );
 
-  // Handle clipboard paste of full multi-word NLP sentence
-  const handlePaste = (e) => {
-    const text = e.clipboardData?.getData("text") || "";
-    if (!text?.includes(" ")) return;
+  // Separate bank amount portion from the main amount text:
+  // 1. Check for keyword phrases: "из них X", "в банк X", "на банк X", "в счет X", etc.
+  // 2. Point 3: Check if a number is entered after adding bank badges ("1000 [Кайф Андрея] 400")
+  const { mainText, bankAmountValue } = useMemo(() => {
+    const prefixRegex =
+      /(?:^|\s)(?:из\s+них|в\s+банк[и]?|на\s+банк[и]?|в\s+счет[а]?|на\s+счет[а]?|в\s+кайф[ы]?|на\s+кайф[ы]?|банк[и]?|счет[а]?|кайф[ы]?|доля|часть)\s*[:=-]?\s*(\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*)(?:\s|$)/i;
+    const postfixRegex =
+      /(?:^|\s)(\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*)\s+(?:из\s+них|в\s+банк[и]?|на\s+банк[и]?|в\s+счет[а]?|на\s+счет[а]?|в\s+кайф[ы]?|на\s+кайф[ы]?)(?:\s|$)/i;
 
-    const words = text.split(/\s+/).filter(Boolean);
-    const hasMatchedCategory = matchCategory(words, currentCategories);
+    const prefixMatch = allText.match(prefixRegex);
+    const postfixMatch = !prefixMatch ? allText.match(postfixRegex) : null;
+    const kwMatch = prefixMatch || postfixMatch;
 
-    if (hasMatchedCategory) {
-      const parsed = parseSmartInput({
-        input: text,
-        categories,
-        banks,
-        type: operationType,
-      });
+    if (kwMatch) {
+      const bankMathRaw = kwMatch[1];
+      const evaluated = evaluateMathExpression(bankMathRaw);
+      const textWithoutBank = allText.replace(kwMatch[0], " ").trim();
+      return {
+        mainText: textWithoutBank,
+        bankAmountValue: evaluated.value,
+      };
+    }
 
-      if (parsed.amount !== null && parsed.category_id !== null) {
-        e.preventDefault();
-        setAmount(String(parsed.amount));
-        setMathBreakdown(parsed.mathBreakdown);
+    // Point 3: If bank badge(s) exist, check if a number/math expression was entered after the bank badges
+    const bankIndices = tokens
+      .map((t, idx) => (t.type === "bank" ? idx : -1))
+      .filter((idx) => idx !== -1);
 
-        const matchedCat = categories.find((c) => c.id === parsed.category_id);
-        setCategory(matchedCat || null);
+    if (bankIndices.length > 0) {
+      const lastBankIdx = Math.max(...bankIndices);
+      const textBeforeBanks = tokens
+        .slice(0, lastBankIdx)
+        .filter((t) => t.type === "text")
+        .map((t) => t.value)
+        .join(" ")
+        .trim();
+      const textAfterBanks = tokens
+        .slice(lastBankIdx + 1)
+        .filter((t) => t.type === "text")
+        .map((t) => t.value)
+        .join(" ")
+        .trim();
 
-        if (operationType === "expense" && parsed.bank_id) {
-          const matchedBank = banks.find((b) => b.id === parsed.bank_id);
-          setBank(matchedBank || null);
+      const numberPattern =
+        /(?:^|\s)(\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*)(?:\s*(?:₽|руб(?:л[ейя])?|р|rur|rub))?(?:\s|$)/i;
+
+      const hasNumberBefore = /\d+(?:[.,]\d+)?/.test(textBeforeBanks);
+      if (hasNumberBefore && textAfterBanks) {
+        const matchAfter = textAfterBanks.match(numberPattern);
+        if (matchAfter) {
+          const evaluated = evaluateMathExpression(matchAfter[1]);
+          if (evaluated.value !== null && evaluated.value > 0) {
+            const afterRemainder = textAfterBanks.replace(matchAfter[0], " ").trim();
+            const combinedMain = `${textBeforeBanks} ${afterRemainder}`.trim();
+            return {
+              mainText: combinedMain,
+              bankAmountValue: evaluated.value,
+            };
+          }
         }
-
-        if (parsed.date) {
-          setDate(parsed.date);
+      } else if (!hasNumberBefore && textAfterBanks) {
+        const allMatches = [
+          ...textAfterBanks.matchAll(
+            /(?:^|\s)(\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*)(?:\s*(?:₽|руб(?:л[ейя])?|р|rur|rub))?(?:\s|$)/gi,
+          ),
+        ];
+        if (allMatches.length >= 2) {
+          const secondMatch = allMatches[1];
+          const evaluated = evaluateMathExpression(secondMatch[1]);
+          if (evaluated.value !== null && evaluated.value > 0) {
+            const afterRemainder = textAfterBanks.replace(secondMatch[0], " ").trim();
+            return {
+              mainText: afterRemainder,
+              bankAmountValue: evaluated.value,
+            };
+          }
         }
-
-        setCurrentInput(parsed.comment || "");
-        userTypedPrefixRef.current = "";
-        setCategoryCorrection(parsed.categoryCorrection);
-        setDropdownOpen(false);
-        setActiveDropdownType(null);
-        setTimeout(() => inputRef.current?.focus(), 0);
       }
     }
+
+    return {
+      mainText: allText,
+      bankAmountValue: null,
+    };
+  }, [allText, tokens]);
+
+  // Compute math evaluation and breakdown for the main transaction amount
+  const mathData = useMemo(() => {
+    return evaluateMathExpression(mainText);
+  }, [mainText]);
+
+  // Compute suggestions based on dropdownType and activeWordInfo.word
+  const currentSuggestions = useMemo(() => {
+    if (!dropdownOpen || !dropdownType) return [];
+    const query = activeWordInfo.word.trim();
+    if (dropdownType === "category") {
+      const hasLetters = /[a-zA-Zа-яёА-ЯЁ]/.test(query);
+      return getCategorySuggestions(hasLetters ? query : "", currentCategories);
+    }
+    if (dropdownType === "bank") {
+      const selectedBankIds = new Set(bankTokens.map((t) => t.bank.id));
+      const availableBanks = banks.filter((b) => !selectedBankIds.has(b.id));
+      const isGenericKeyword = BANK_KEYWORD_HIGHLIGHT_REGEX.test(query);
+      return getBankSuggestions(isGenericKeyword ? "" : query, availableBanks);
+    }
+    return [];
+  }, [dropdownOpen, dropdownType, activeWordInfo.word, currentCategories, banks, bankTokens]);
+
+  // Format label for date chip
+  const getDateChipLabel = (dateStr) => {
+    const today = getLocalDateString();
+    if (dateStr === today) return "Сегодня";
+    if (prevMonthTargetDate && dateStr === prevMonthTargetDate) {
+      return "Прошлый месяц";
+    }
+    return formatDateShort(dateStr);
   };
 
-  // Main input change handler
-  const handleInputChange = (e) => {
+  // Convert an active word in a text token into a Badge token
+  const confirmSelection = useCallback(
+    (item, typeToConfirm = dropdownType) => {
+      if (!item) return;
+
+      setTokens((prevTokens) => {
+        const tokenIndex = prevTokens.findIndex((t) => t.id === activeTokenId);
+        if (tokenIndex === -1) return prevTokens;
+
+        const currentToken = prevTokens[tokenIndex];
+        const val = currentToken.value;
+        const { start, end, word } = activeWordInfo;
+
+        let before;
+        let after;
+
+        const isGenericBankKeyword = BANK_KEYWORD_HIGHLIGHT_REGEX.test((word || "").trim());
+
+        // If the active word contains letters and is not a generic bank keyword, replace that specific word.
+        // Otherwise (generic keyword or numeric/empty), keep the existing content as before and append badge.
+        if (word && /[a-zA-Zа-яёА-ЯЁ]/.test(word) && !isGenericBankKeyword) {
+          before = val
+            .slice(0, start)
+            .trimEnd()
+            .replace(/[,ив\s]+$/, "")
+            .trimEnd();
+          after = val.slice(end).trimStart();
+        } else {
+          before = val.trimEnd();
+          after = "";
+        }
+
+        const newBadgeToken = {
+          id: `${typeToConfirm}-${Date.now()}`,
+          type: typeToConfirm,
+          [typeToConfirm]: item,
+        };
+
+        const nextTextToken = {
+          id: `text-${Date.now() + 1}`,
+          type: "text",
+          value: after || "",
+        };
+
+        const updated = [...prevTokens];
+        if (before) {
+          updated.splice(
+            tokenIndex,
+            1,
+            { ...currentToken, value: before },
+            newBadgeToken,
+            nextTextToken,
+          );
+        } else {
+          updated.splice(tokenIndex, 1, newBadgeToken, nextTextToken);
+        }
+
+        setTimeout(() => {
+          setActiveTokenId(nextTextToken.id);
+          inputRefs.current[nextTextToken.id]?.focus();
+        }, 0);
+
+        return updated;
+      });
+
+      setActiveWordInfo({ word: "", start: 0, end: 0 });
+      setDropdownOpen(false);
+      setDropdownType(null);
+      setSelectedIndex(0);
+    },
+    [activeTokenId, activeWordInfo, dropdownType],
+  );
+
+  // Remove a badge token and refocus
+  const removeBadgeToken = useCallback((tokenId) => {
+    setTokens((prevTokens) => {
+      const idx = prevTokens.findIndex((t) => t.id === tokenId);
+      if (idx === -1) return prevTokens;
+
+      const nextTokens = [...prevTokens];
+      nextTokens.splice(idx, 1);
+
+      // If no text tokens left or adjacent text tokens, ensure valid text token exists
+      if (nextTokens.length === 0) {
+        const newText = { id: `text-${Date.now()}`, type: "text", value: "" };
+        nextTokens.push(newText);
+        setTimeout(() => inputRefs.current[newText.id]?.focus(), 0);
+        return nextTokens;
+      }
+
+      // Merge adjacent text tokens
+      const merged = [];
+      for (const t of nextTokens) {
+        const prev = merged[merged.length - 1];
+        if (prev && prev.type === "text" && t.type === "text") {
+          prev.value = `${prev.value.trimEnd()} ${t.value.trimStart()}`.trim();
+        } else {
+          merged.push(t);
+        }
+      }
+
+      // Focus the nearest text token
+      const focusTarget = merged.find((t) => t.type === "text") || merged[merged.length - 1];
+      if (focusTarget && focusTarget.type === "text") {
+        setTimeout(() => {
+          setActiveTokenId(focusTarget.id);
+          inputRefs.current[focusTarget.id]?.focus();
+          if (prevTokens[idx].type === "category") {
+            setDropdownType("category");
+            setDropdownOpen(true);
+            setSelectedIndex(0);
+          }
+        }, 0);
+      }
+
+      return merged;
+    });
+  }, []);
+
+  // Handle final submission
+  const handleTriggerSubmit = useCallback(() => {
+    const totalAmount = mathData.value;
+    if (!totalAmount || Number.isNaN(totalAmount) || totalAmount <= 0) {
+      return;
+    }
+
+    const finalCategory = existingCategoryToken?.category || currentCategories[0];
+    if (!finalCategory) {
+      return;
+    }
+
+    const finalBankTokens = operationType === "expense" ? bankTokens : [];
+    const bank_ids = finalBankTokens.map((t) => t.bank.id);
+    const bank_amount = bank_ids.length > 0 ? (bankAmountValue ?? totalAmount) : null;
+
+    // Extract comment from mainText by removing math tokens, operators, and bank keywords
+    const comment = mainText
+      .replace(/(\d+(?:[.,]\d+)?|[+\-*/])/g, " ")
+      .replace(
+        /(?:^|\s)(?:из\s+них|них|в\s+банк[и]?|на\s+банк[и]?|в\s+сч[её]т[а]?|на\s+сч[её]т[а]?|в\s+кайф[ы]?|на\s+кайф[ы]?|банк[и]?|сч[её]т[а]?|кайф[ы]?|доля|часть)(?:\s|$)/gi,
+        " ",
+      )
+      .replace(/\s+/g, " ")
+      .trim();
+
+    onSubmit({
+      amount: totalAmount,
+      category_id: finalCategory.id,
+      bank_id: bank_ids[0] || null,
+      bank_ids,
+      bank_amount,
+      date: date || getLocalDateString(),
+      comment,
+    });
+
+    // Reset tokens, but keep sticky date!
+    const newToken = { id: `token-${Date.now()}`, type: "text", value: "" };
+    setTokens([newToken]);
+    setActiveTokenId(newToken.id);
+    setActiveWordInfo({ word: "", start: 0, end: 0 });
+    setDropdownType(null);
+    setDropdownOpen(false);
+    setOpenDateMenu(false);
+    setSelectedIndex(0);
+
+    // Remove focus from input so all dropdowns disappear immediately upon entering the operation
+    if (document.activeElement && typeof document.activeElement.blur === "function") {
+      document.activeElement.blur();
+    }
+  }, [
+    mathData.value,
+    existingCategoryToken,
+    bankTokens,
+    currentCategories,
+    operationType,
+    bankAmountValue,
+    mainText,
+    date,
+    onSubmit,
+  ]);
+
+  // Handle token focus
+  const handleTokenFocus = useCallback(
+    (tokenId) => {
+      setActiveTokenId(tokenId);
+      if (!existingCategoryToken) {
+        setDropdownType("category");
+        setDropdownOpen(true);
+        setSelectedIndex(0);
+      }
+    },
+    [existingCategoryToken],
+  );
+
+  // Handle token click
+  const handleTokenClick = useCallback(
+    (tokenId) => {
+      setActiveTokenId(tokenId);
+      if (!existingCategoryToken && !dropdownOpen) {
+        setDropdownType("category");
+        setDropdownOpen(true);
+        setSelectedIndex(0);
+      }
+    },
+    [existingCategoryToken, dropdownOpen],
+  );
+
+  // Handle input text changes
+  const handleTokenChange = (tokenId, e) => {
     const val = e.target.value;
     const cursorPos = e.target.selectionStart || val.length;
 
-    // =========================================================
-    // CASE 1: Typing amount (amount === null)
-    // =========================================================
-    if (amount === null) {
-      if (!val) {
-        setCurrentInput("");
-        setDropdownOpen(false);
-        setActiveDropdownType(null);
-        return;
-      }
+    // Update token text
+    setTokens((prev) => prev.map((t) => (t.id === tokenId ? { ...t, value: val } : t)));
 
-      // Step 1: Math/number followed by trailing space (e.g. "1500 " or "1500 + 300 ")
-      const mathMatch = val.match(/^(\s*\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*)\s+$/);
-      if (mathMatch && val.endsWith(" ")) {
-        const mathRaw = mathMatch[1].trim();
-        const evaluated = evaluateMathExpression(mathRaw);
-        if (evaluated.value !== null) {
-          setAmount(String(evaluated.value));
-          setMathBreakdown(
-            evaluated.expression ||
-              (mathRaw.includes("+") ||
-              mathRaw.includes("-") ||
-              mathRaw.includes("*") ||
-              mathRaw.includes("/")
-                ? mathRaw
-                : null),
-          );
-          setCurrentInput("");
-          userTypedPrefixRef.current = "";
-          if (!category) {
-            setDropdownOpen(true);
-            setActiveDropdownType("category");
-            setSelectedIndex(0);
-          } else {
-            setDropdownOpen(false);
-            setActiveDropdownType(null);
-          }
-          return;
-        }
-      }
+    setActiveTokenId(tokenId);
 
-      // Step 2: Math/number followed by non-math category characters (e.g. "1500е" or "1500 кафе" or "500+250к")
-      const mathWithTextMatch = val.match(
-        /^(\s*\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*)\s*([^\d+\-*/.,].*)$/,
-      );
-      if (mathWithTextMatch) {
-        const mathRaw = mathWithTextMatch[1].trim();
-        const textPart = mathWithTextMatch[2];
-        const evaluated = evaluateMathExpression(mathRaw);
-        if (evaluated.value !== null) {
-          setAmount(String(evaluated.value));
-          setMathBreakdown(
-            evaluated.expression ||
-              (mathRaw.includes("+") ||
-              mathRaw.includes("-") ||
-              mathRaw.includes("*") ||
-              mathRaw.includes("/")
-                ? mathRaw
-                : null),
-          );
-          userTypedPrefixRef.current = textPart;
-          if (!category) {
-            setDropdownOpen(true);
-            setActiveDropdownType("category");
-            setSelectedIndex(0);
-
-            const suggestions = getCategorySuggestions(textPart, currentCategories);
-            const top = suggestions[0];
-            if (!isDeletingRef.current && top) {
-              const comp = getAutocompleteCompletion(textPart, top);
-              if (comp) {
-                setCurrentInput(comp.completed);
-                selectionRangeRef.current = [comp.selectionStart, comp.selectionEnd];
-                return;
-              }
-            }
-          }
-
-          setCurrentInput(textPart);
-          return;
-        }
-      }
-
-      // Step 3: Non-math characters typed directly without amount (e.g. "продукты" or "п")
-      if (!category) {
-        const endsWithOperator = /[+\-*/]\s*$/.test(val);
-        const hasNonMath =
-          /[^\d+\-*/.,\s]/.test(val) ||
-          (!endsWithOperator && val.endsWith(" ") && val.trim().length > 0);
-        if (hasNonMath) {
-          if (val.endsWith(" ")) {
-            const word = val.trim();
-            const matched = matchCategory([word], currentCategories);
-            if (matched) {
-              confirmCategory({
-                ...matched.category,
-                wasCorrected: matched.wasCorrected,
-                originalWord: matched.originalWord,
-              });
-              return;
-            }
-          }
-
-          userTypedPrefixRef.current = val;
-          setDropdownOpen(true);
-          setActiveDropdownType("category");
-          setSelectedIndex(0);
-
-          const suggestions = getCategorySuggestions(val, currentCategories);
-          const top = suggestions[0];
-          if (!isDeletingRef.current && top) {
-            const comp = getAutocompleteCompletion(val, top);
-            if (comp) {
-              setCurrentInput(comp.completed);
-              selectionRangeRef.current = [comp.selectionStart, comp.selectionEnd];
-              return;
-            }
-          }
-
-          setCurrentInput(val);
-          return;
-        }
-      }
-
-      // Step 4: Pure math characters (digits, +, -, *, /, ., ,)
-      setCurrentInput(val);
-      setDropdownOpen(false);
-      setActiveDropdownType(null);
-      return;
+    // Sync highlight scroll
+    if (highlightRefs.current[tokenId]) {
+      highlightRefs.current[tokenId].scrollLeft = e.target.scrollLeft;
     }
 
-    // =========================================================
-    // CASE 2: Amount is set, but category is not yet chosen
-    // =========================================================
-    if (!category) {
-      // Step 3a: If user types operator at start, expand math on the amount
-      if (
-        val.startsWith("+") ||
-        val.startsWith("-") ||
-        val.startsWith("*") ||
-        val.startsWith("/")
-      ) {
-        const prev = mathBreakdown || amount;
-        setAmount(null);
-        setMathBreakdown(null);
-        setCurrentInput(`${prev} ${val}`);
-        setDropdownOpen(false);
-        setActiveDropdownType(null);
-        return;
-      }
+    // Determine current word under cursor
+    const beforeCursor = val.slice(0, cursorPos);
+    const lastSpaceIdx = beforeCursor.lastIndexOf(" ");
+    const wordStart = lastSpaceIdx === -1 ? 0 : lastSpaceIdx + 1;
+    const currentWord = beforeCursor.slice(wordStart);
+    const wordEnd = cursorPos;
 
-      // Step 3b: If user types digits or math symbols, expand amount and keep dropdown closed
-      if (/^[\d.,\s+*/-]+$/.test(val)) {
-        const prev = mathBreakdown || amount;
-        setAmount(null);
-        setMathBreakdown(null);
-        setCurrentInput(`${prev}${val.trimStart()}`);
-        setDropdownOpen(false);
-        setActiveDropdownType(null);
-        return;
-      }
+    setActiveWordInfo({ word: currentWord, start: wordStart, end: wordEnd });
 
-      // If user typed category word followed by space, check for exact/alias match
-      if (val.endsWith(" ")) {
-        const word = val.trim();
-        const matched = matchCategory([word], currentCategories);
-        if (matched) {
-          confirmCategory({
-            ...matched.category,
-            wasCorrected: matched.wasCorrected,
-            originalWord: matched.originalWord,
+    // Check for exact match when user types space
+    const trimmedBefore = beforeCursor.trimEnd();
+    const lastSpaceInTrimmed = trimmedBefore.lastIndexOf(" ");
+    const wordJustCompleted =
+      lastSpaceInTrimmed === -1 ? trimmedBefore : trimmedBefore.slice(lastSpaceInTrimmed + 1);
+
+    if (beforeCursor.endsWith(" ") && wordJustCompleted) {
+      const completedStart = lastSpaceInTrimmed === -1 ? 0 : lastSpaceInTrimmed + 1;
+      const completedEnd = completedStart + wordJustCompleted.length;
+
+      if (!existingCategoryToken) {
+        const catMatch = matchCategory([wordJustCompleted], currentCategories);
+        if (catMatch) {
+          setActiveWordInfo({
+            word: wordJustCompleted,
+            start: completedStart,
+            end: completedEnd,
           });
+          confirmSelection(catMatch.category, "category");
+          return;
+        }
+      }
+      if (operationType === "expense" && existingCategoryToken) {
+        const selectedBankIds = new Set(bankTokens.map((t) => t.bank.id));
+        const availableBanks = banks.filter((b) => !selectedBankIds.has(b.id));
+        const bankMatch = matchBank([wordJustCompleted], availableBanks);
+        if (bankMatch) {
+          setActiveWordInfo({
+            word: wordJustCompleted,
+            start: completedStart,
+            end: completedEnd,
+          });
+          confirmSelection(bankMatch.bank, "bank");
+          return;
+        }
+      }
+    }
+
+    // Check if current word has letters
+    const hasLetters = /[a-zA-Zа-яёА-ЯЁ]/.test(currentWord);
+
+    // Check if user is typing bank keyword or phrase ending with bank keyword
+    const isTypingBankKeyword =
+      operationType === "expense" && BANK_KEYWORDS_REGEX.test(beforeCursor);
+
+    if (isTypingBankKeyword) {
+      setDropdownType("bank");
+      setDropdownOpen(true);
+      setSelectedIndex(0);
+      return;
+    }
+
+    // Context detection:
+    // 4. Как только пользователь начал вводить буквы, показываем дропдаун с категориями.
+    // Если в моменте понимаем, что есть совпадение со счетами, переключаем дропдаун на них.
+    // 5. После ввода категории, не сразу показываем дропдаун счетов, а только если считываем совпадение.
+    if (!existingCategoryToken) {
+      if (hasLetters) {
+        const bankMatches =
+          operationType === "expense" ? getBankSuggestions(currentWord, banks) : [];
+        const catMatches = getCategorySuggestions(currentWord, currentCategories);
+
+        if (bankMatches.length > 0 && catMatches.length === 0) {
+          setDropdownType("bank");
+          setDropdownOpen(true);
+          setSelectedIndex(0);
           return;
         }
       }
 
-      // Step 4: Category typing with NATIVE inline selection autocomplete
-      const typedPrefix = val.slice(0, cursorPos);
-      userTypedPrefixRef.current = typedPrefix;
-
-      if (typedPrefix.length > 0) {
-        const suggestions = getCategorySuggestions(typedPrefix, currentCategories);
-        setDropdownOpen(true);
-        setActiveDropdownType("category");
-        setSelectedIndex(0);
-
-        const top = suggestions[0];
-        if (!isDeletingRef.current && top) {
-          const comp = getAutocompleteCompletion(typedPrefix, top);
-          if (comp) {
-            setCurrentInput(comp.completed);
-            selectionRangeRef.current = [comp.selectionStart, comp.selectionEnd];
-            return;
-          }
-        }
-      } else {
-        // Empty prefix: keep dropdown open showing all categories
-        setDropdownOpen(true);
-        setActiveDropdownType("category");
-        setSelectedIndex(0);
-      }
-
-      setCurrentInput(val);
+      // If category is not entered yet, ALWAYS keep category dropdown open!
+      setDropdownType("category");
+      setDropdownOpen(true);
+      setSelectedIndex(0);
       return;
     }
 
-    // =========================================================
-    // CASE 3: Both amount and category are set -> Trailing Input
-    // =========================================================
-    setCurrentInput(val);
-    const trimmed = val.trim();
-
-    // Check for bank suggestions
-    if (operationType === "expense" && !bank && trimmed.length >= 1) {
-      const bSuggestions = getBankSuggestions(trimmed, banks);
-      if (bSuggestions.length > 0) {
+    // Category already exists: open bank dropdown if matching an unselected bank!
+    if (operationType === "expense" && hasLetters) {
+      const selectedBankIds = new Set(bankTokens.map((t) => t.bank.id));
+      const availableBanks = banks.filter((b) => !selectedBankIds.has(b.id));
+      const bankMatches = getBankSuggestions(currentWord, availableBanks);
+      if (bankMatches.length > 0) {
+        setDropdownType("bank");
         setDropdownOpen(true);
-        setActiveDropdownType("bank");
         setSelectedIndex(0);
         return;
       }
     }
 
-    // Check for date suggestions
-    if (trimmed.length >= 1) {
-      const dSuggestions = getDateSuggestions(trimmed);
-      if (dSuggestions.length > 0) {
-        setDropdownOpen(true);
-        setActiveDropdownType("date");
-        setSelectedIndex(0);
-        return;
-      }
-    }
-
+    // Both or unneeded
     setDropdownOpen(false);
-    setActiveDropdownType(null);
+    setDropdownType(null);
   };
 
   // Keyboard navigation
-  const handleInputKeyDown = (e) => {
-    // 1. ArrowDown / ArrowUp navigation in dropdown
-    if (e.key === "ArrowDown" && dropdownOpen && currentSuggestionsList.length > 0) {
+  const handleKeyDown = (tokenId, tokenIndex, e) => {
+    // 1. Dropdown navigation
+    if (e.key === "ArrowDown" && dropdownOpen && currentSuggestions.length > 0) {
       e.preventDefault();
-      const nextIdx = (selectedIndex + 1) % currentSuggestionsList.length;
-      setSelectedIndex(nextIdx);
-
-      // In category mode, update input value and selection to selected suggestion
-      if (!category && activeDropdownType === "category") {
-        const nextItem = currentSuggestionsList[nextIdx];
-        const targetText = nextItem.matchedAlias || nextItem.name;
-        const prefix = userTypedPrefixRef.current;
-        if (prefix && targetText.toLowerCase().startsWith(prefix.toLowerCase())) {
-          const completed = prefix + targetText.slice(prefix.length);
-          setCurrentInput(completed);
-          selectionRangeRef.current = [prefix.length, completed.length];
-        } else {
-          setCurrentInput(targetText);
-          selectionRangeRef.current = [targetText.length, targetText.length];
-        }
-      }
+      setSelectedIndex((prev) => (prev + 1) % currentSuggestions.length);
       return;
     }
 
-    if (e.key === "ArrowUp" && dropdownOpen && currentSuggestionsList.length > 0) {
+    if (e.key === "ArrowUp" && dropdownOpen && currentSuggestions.length > 0) {
       e.preventDefault();
-      const nextIdx =
-        (selectedIndex - 1 + currentSuggestionsList.length) % currentSuggestionsList.length;
-      setSelectedIndex(nextIdx);
-
-      if (!category && activeDropdownType === "category") {
-        const nextItem = currentSuggestionsList[nextIdx];
-        const targetText = nextItem.matchedAlias || nextItem.name;
-        const prefix = userTypedPrefixRef.current;
-        if (prefix && targetText.toLowerCase().startsWith(prefix.toLowerCase())) {
-          const completed = prefix + targetText.slice(prefix.length);
-          setCurrentInput(completed);
-          selectionRangeRef.current = [prefix.length, completed.length];
-        } else {
-          setCurrentInput(targetText);
-          selectionRangeRef.current = [targetText.length, targetText.length];
-        }
-      }
+      setSelectedIndex(
+        (prev) => (prev - 1 + currentSuggestions.length) % currentSuggestions.length,
+      );
       return;
     }
 
-    // 2. Escape: close dropdown / popovers
+    // 2. Escape: close dropdown
     if (e.key === "Escape") {
       if (dropdownOpen) {
         e.preventDefault();
         setDropdownOpen(false);
-        return;
-      }
-      if (openChipMenu) {
-        e.preventDefault();
-        setOpenChipMenu(null);
         return;
       }
       if (openDateMenu) {
@@ -632,51 +639,13 @@ export function SmartTokenInput({
 
     // 3. Tab or Enter
     if (e.key === "Tab" || e.key === "Enter") {
-      if (dropdownOpen && currentSuggestionsList.length > 0) {
+      if (dropdownOpen && currentSuggestions.length > 0) {
         e.preventDefault();
-        const activeItem = currentSuggestionsList[selectedIndex] || currentSuggestionsList[0];
-        if (activeDropdownType === "category") {
-          confirmCategory(activeItem);
-          return;
-        }
-        if (activeDropdownType === "bank") {
-          confirmBank(activeItem);
-          return;
-        }
-        if (activeDropdownType === "date") {
-          confirmDate(activeItem);
-          return;
-        }
-      }
-
-      // If user typed plain number/math and hit Enter without space:
-      // Lock the amount and focus category selection (Do NOT submit default category!)
-      if (e.key === "Enter" && amount === null && currentInput.trim()) {
-        const evaluated = evaluateMathExpression(currentInput);
-        if (evaluated.value !== null) {
-          e.preventDefault();
-          setAmount(String(evaluated.value));
-          setMathBreakdown(evaluated.expression);
-          setCurrentInput("");
-          userTypedPrefixRef.current = "";
-          setDropdownOpen(true);
-          setActiveDropdownType("category");
-          setSelectedIndex(0);
-          return;
-        }
-      }
-
-      // If amount is set, but category is not yet chosen:
-      // Open category dropdown (Do NOT submit!)
-      if (e.key === "Enter" && amount !== null && !category) {
-        e.preventDefault();
-        setDropdownOpen(true);
-        setActiveDropdownType("category");
-        setSelectedIndex(0);
+        const activeItem = currentSuggestions[selectedIndex] || currentSuggestions[0];
+        confirmSelection(activeItem);
         return;
       }
 
-      // Enter in trailing input: submit
       if (e.key === "Enter") {
         e.preventDefault();
         handleTriggerSubmit();
@@ -684,251 +653,334 @@ export function SmartTokenInput({
       }
     }
 
-    // 4. Backspace
-    if (e.key === "Backspace" || e.key === "Delete") {
-      isDeletingRef.current = true;
-
-      // When input is empty, step back gracefully (Zero Data Loss)
-      if (currentInput === "") {
-        e.preventDefault();
-
-        if (bank) {
-          setBank(null);
-          return;
+    // 4. Backspace: remove preceding badge if text input is empty at cursor 0
+    if (e.key === "Backspace") {
+      const inputEl = inputRefs.current[tokenId];
+      if (inputEl && inputEl.selectionStart === 0 && inputEl.selectionEnd === 0) {
+        if (tokenIndex > 0) {
+          const prevToken = tokens[tokenIndex - 1];
+          if (prevToken && (prevToken.type === "category" || prevToken.type === "bank")) {
+            e.preventDefault();
+            removeBadgeToken(prevToken.id);
+            return;
+          }
         }
-
-        if (category) {
-          // Revert category badge back into editable text in input!
-          const restoredCatName = category.name;
-          setCategory(null);
-          setCategoryCorrection(null);
-          setCurrentInput(restoredCatName);
-          userTypedPrefixRef.current = restoredCatName;
-          setDropdownOpen(true);
-          setActiveDropdownType("category");
-          setSelectedIndex(0);
-          selectionRangeRef.current = [restoredCatName.length, restoredCatName.length];
-          return;
-        }
-
-        if (amount !== null) {
-          // Revert amount text back into input for editing
-          const restored = `${mathBreakdown || amount} `;
-          setAmount(null);
-          setMathBreakdown(null);
-          setCurrentInput(restored);
-          userTypedPrefixRef.current = "";
-          setDropdownOpen(false);
-          setActiveDropdownType(null);
-          selectionRangeRef.current = [restored.length, restored.length];
-        }
-        return;
       }
-    } else {
-      isDeletingRef.current = false;
+    }
+
+    // 5. ArrowLeft / ArrowRight navigation between segments
+    if (e.key === "ArrowLeft") {
+      const inputEl = inputRefs.current[tokenId];
+      if (inputEl && inputEl.selectionStart === 0 && inputEl.selectionEnd === 0) {
+        for (let i = tokenIndex - 1; i >= 0; i--) {
+          if (tokens[i].type === "text") {
+            const targetId = tokens[i].id;
+            setActiveTokenId(targetId);
+            const targetEl = inputRefs.current[targetId];
+            if (targetEl) {
+              e.preventDefault();
+              targetEl.focus();
+              targetEl.setSelectionRange(targetEl.value.length, targetEl.value.length);
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    if (e.key === "ArrowRight") {
+      const inputEl = inputRefs.current[tokenId];
+      if (
+        inputEl &&
+        inputEl.selectionStart === inputEl.value.length &&
+        inputEl.selectionEnd === inputEl.value.length
+      ) {
+        for (let i = tokenIndex + 1; i < tokens.length; i++) {
+          if (tokens[i].type === "text") {
+            const targetId = tokens[i].id;
+            setActiveTokenId(targetId);
+            const targetEl = inputRefs.current[targetId];
+            if (targetEl) {
+              e.preventDefault();
+              targetEl.focus();
+              targetEl.setSelectionRange(0, 0);
+            }
+            break;
+          }
+        }
+      }
     }
   };
 
-  // Format label for date chip and dropdown button
-  const getDateChipLabel = (dateStr) => {
-    const today = getLocalDateString();
-    if (dateStr === today) return "Сегодня";
-    if (prevMonthTargetDate && dateStr === prevMonthTargetDate) {
-      return "Прошлый месяц";
+  // Handle clipboard paste
+  const handlePaste = (e) => {
+    const text = e.clipboardData?.getData("text") || "";
+    if (!text?.includes(" ")) return;
+
+    const parsed = parseSmartInput({
+      input: text,
+      categories,
+      banks,
+      type: operationType,
+    });
+
+    if (parsed.amount !== null || parsed.category_id !== null) {
+      e.preventDefault();
+
+      const newTokens = [];
+      const mathStr = parsed.mathBreakdown || (parsed.amount ? String(parsed.amount) : "");
+      let initialText = mathStr ? `${mathStr} ` : "";
+      if (parsed.bank_amount && parsed.bank_amount !== parsed.amount) {
+        initialText += `из них ${parsed.bank_amount} `;
+      }
+      if (initialText) {
+        newTokens.push({
+          id: `text-${Date.now()}-1`,
+          type: "text",
+          value: initialText,
+        });
+      }
+
+      if (parsed.category_id) {
+        const cat = categories.find((c) => c.id === parsed.category_id);
+        if (cat) {
+          newTokens.push({
+            id: `cat-${Date.now()}-2`,
+            type: "category",
+            category: cat,
+          });
+        }
+      }
+
+      if (operationType === "expense" && parsed.banks && parsed.banks.length > 0) {
+        for (let i = 0; i < parsed.banks.length; i++) {
+          newTokens.push({
+            id: `bank-${Date.now()}-${3 + i}`,
+            type: "bank",
+            bank: parsed.banks[i],
+          });
+        }
+      } else if (operationType === "expense" && parsed.bank_id) {
+        const b = banks.find((item) => item.id === parsed.bank_id);
+        if (b) {
+          newTokens.push({
+            id: `bank-${Date.now()}-3`,
+            type: "bank",
+            bank: b,
+          });
+        }
+      }
+
+      const lastText = {
+        id: `text-${Date.now()}-last`,
+        type: "text",
+        value: parsed.comment ? ` ${parsed.comment}` : "",
+      };
+      newTokens.push(lastText);
+
+      setTokens(newTokens);
+      setActiveTokenId(lastText.id);
+      setDropdownOpen(false);
+      setDropdownType(null);
+
+      setTimeout(() => inputRefs.current[lastText.id]?.focus(), 0);
     }
-    return formatDateShort(dateStr);
   };
 
-  // Placeholder logic
-  const getPlaceholder = () => {
-    if (amount === null) {
-      return operationType === "expense"
-        ? "Например: 1500+250 продукты кайф андрея сыр и молоко"
-        : "Например: 45000 зарплата за сентябрь";
+  // Math hint breakdown string and bank distribution breakdown
+  const mathHintLabel = useMemo(() => {
+    const total = mathData.value;
+    if (!total || total <= 0) {
+      return null;
     }
-    if (!category) {
-      return "Категория (начните вводить название)";
+
+    let mathStr = null;
+    if (mathData?.terms && mathData.terms.length > 1) {
+      const termsStr = mathData.terms
+        .map((t, idx) => {
+          const valFormatted = formatNumber(t.value);
+          if (idx === 0) {
+            return t.op === "-" ? `-${valFormatted}` : valFormatted;
+          }
+          return `${t.op} ${valFormatted}`;
+        })
+        .join(" ");
+
+      mathStr = `Сумма: ${termsStr} = ${formatNumber(total)} ₽`;
     }
-    return "Счет или комментарий (Enter для сохранения)";
-  };
+
+    let bankStr = null;
+    if (operationType === "expense" && bankTokens.length > 0) {
+      const bankAmount = bankAmountValue !== null ? bankAmountValue : total;
+      const count = bankTokens.length;
+
+      if (count === 1) {
+        if (bankAmountValue !== null && bankAmountValue !== total) {
+          bankStr = `В банк: ${formatNumber(bankAmount)} ₽ (${bankTokens[0].bank.name})`;
+        } else {
+          bankStr = `В банк: ${bankTokens[0].bank.name}`;
+        }
+      } else {
+        const shares = splitBankAmount(bankAmount, count);
+        const allEqual = shares.every((s) => s === shares[0]);
+        if (allEqual) {
+          const names = bankTokens.map((t) => t.bank.name).join(", ");
+          bankStr = `В банки: ${formatNumber(bankAmount)} ₽ (по ${formatNumber(shares[0])} ₽ в ${names})`;
+        } else {
+          const breakdown = bankTokens
+            .map((t, i) => `${t.bank.name}: ${formatNumber(shares[i])} ₽`)
+            .join(", ");
+          bankStr = `В банки: ${formatNumber(bankAmount)} ₽ (${breakdown})`;
+        }
+      }
+    } else if (operationType === "expense" && bankAmountValue !== null) {
+      bankStr = `В банк: ${formatNumber(bankAmountValue)} ₽`;
+    }
+
+    if (mathStr && bankStr) {
+      return `${mathStr} • ${bankStr}`;
+    }
+    if (mathStr) {
+      return mathStr;
+    }
+    if (bankStr) {
+      return `Сумма: ${formatNumber(total)} ₽ • ${bankStr}`;
+    }
+
+    return null;
+  }, [mathData, operationType, bankTokens, bankAmountValue]);
 
   return (
     <div className="o-smart-entry-box">
       <div className="o-smart-entry-row">
+        {/* Token Container */}
         <div
           ref={containerRef}
           className="o-smart-token-container"
           onClick={(e) => {
-            if (
-              e.target === containerRef.current ||
-              e.target.classList.contains("o-smart-token-input-field")
-            ) {
-              inputRef.current?.focus();
+            if (e.target === containerRef.current) {
+              const lastText = [...tokens].reverse().find((t) => t.type === "text");
+              if (lastText) {
+                inputRefs.current[lastText.id]?.focus();
+                if (!existingCategoryToken) {
+                  setDropdownType("category");
+                  setDropdownOpen(true);
+                  setSelectedIndex(0);
+                }
+              }
             }
           }}
         >
-          {/* 1. Amount styled in green regular text without badge */}
-          {amount !== null && (
-            <span className="o-smart-token-amount-wrap">
-              <input
-                ref={amountInputRef}
-                type="text"
-                className="o-smart-token-amount-input"
-                value={amount}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setAmount(next);
-                  if (!next.trim()) {
-                    setAmount(null);
-                    setCategory(null);
-                    setCurrentInput("");
-                    userTypedPrefixRef.current = "";
-                    inputRef.current?.focus();
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowRight") {
-                    inputRef.current?.focus();
-                  }
-                }}
-                style={{ width: `${Math.max(2, String(amount).length)}ch` }}
-              />
-              <span className="o-smart-token-currency">₽</span>
-            </span>
-          )}
+          {tokens.map((token, index) => {
+            const isLast = index === tokens.length - 1;
 
-          {/* 2. Category Chip (turns into badge) */}
-          {category && (
-            <div className="o-smart-chip-wrapper">
-              <button
-                type="button"
-                className="m-category-chip o-smart-token-chip"
-                data-context="overlay"
-                data-size="s"
-                onClick={() => setOpenChipMenu((prev) => (prev === "category" ? null : "category"))}
-                title="Нажмите для смены категории"
-              >
-                <span>{category.name}</span>
-              </button>
-
-              {openChipMenu === "category" && (
-                <div ref={chipMenuRef} className="o-smart-chip-popover">
-                  <div className="o-smart-chip-popover-title">Категория</div>
-                  <div className="o-smart-chip-popover-list">
-                    {currentCategories.map((cat) => (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        className="o-smart-popover-item"
-                        data-active={cat.id === category.id}
-                        onClick={() => {
-                          setCategory(cat);
-                          setOpenChipMenu(null);
-                          inputRef.current?.focus();
-                        }}
-                      >
-                        <i className={getCategoryIcon(cat.name)} />
-                        <span>{cat.name}</span>
-                      </button>
-                    ))}
-                  </div>
+            if (token.type === "category") {
+              return (
+                <span
+                  key={token.id}
+                  className="m-category-chip o-smart-token-chip"
+                  data-context="overlay"
+                  data-size="s"
+                >
+                  <i className={getCategoryIcon(token.category.name)} />
+                  <span>{token.category.name}</span>
                   <button
                     type="button"
-                    className="o-smart-popover-item o-smart-popover-danger"
-                    onClick={() => {
-                      setCategory(null);
-                      setOpenChipMenu(null);
-                      userTypedPrefixRef.current = "";
-                      setDropdownOpen(true);
-                      setActiveDropdownType("category");
-                      setSelectedIndex(0);
-                      inputRef.current?.focus();
-                    }}
-                  >
-                    <i className="ri-delete-bin-line" />
-                    <span>Удалить категорию</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 3. Bank Chip (only for expense) */}
-          {operationType === "expense" && bank && (
-            <div className="o-smart-chip-wrapper">
-              <button
-                type="button"
-                className="m-category-chip o-smart-token-chip"
-                data-context="overlay"
-                data-size="s"
-                onClick={() => setOpenChipMenu((prev) => (prev === "bank" ? null : "bank"))}
-                title="Нажмите для смены счета"
-              >
-                <span>{bank.name}</span>
-              </button>
-
-              {openChipMenu === "bank" && (
-                <div ref={chipMenuRef} className="o-smart-chip-popover">
-                  <div className="o-smart-chip-popover-title">Счет</div>
-                  <div className="o-smart-chip-popover-list">
-                    {banks.map((b) => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        className="o-smart-popover-item"
-                        data-active={b.id === bank.id}
-                        onClick={() => {
-                          setBank(b);
-                          setOpenChipMenu(null);
-                          inputRef.current?.focus();
-                        }}
-                      >
-                        <i className="ri-bank-card-line" />
-                        <span>{b.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    className="o-smart-popover-item o-smart-popover-danger"
-                    onClick={() => {
-                      setBank(null);
-                      setOpenChipMenu(null);
-                      inputRef.current?.focus();
+                    className="o-smart-token-chip-remove"
+                    tabIndex={-1}
+                    aria-label="Удалить категорию"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeBadgeToken(token.id);
                     }}
                   >
                     <i className="ri-close-line" />
-                    <span>Без счета (удалить)</span>
                   </button>
+                </span>
+              );
+            }
+
+            if (token.type === "bank") {
+              return (
+                <span
+                  key={token.id}
+                  className="m-category-chip o-smart-token-chip"
+                  data-context="overlay"
+                  data-size="s"
+                >
+                  <i className="ri-bank-card-line" />
+                  <span>{token.bank.name}</span>
+                  <button
+                    type="button"
+                    className="o-smart-token-chip-remove"
+                    tabIndex={-1}
+                    aria-label="Удалить счет"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeBadgeToken(token.id);
+                    }}
+                  >
+                    <i className="ri-close-line" />
+                  </button>
+                </span>
+              );
+            }
+
+            // Text token
+            return (
+              <div
+                key={token.id}
+                className="o-smart-token-text-wrap"
+                style={{
+                  flex: isLast ? "1 1 8rem" : "0 0 auto",
+                  minWidth: isLast ? "4rem" : token.value ? "0" : "1.5rem",
+                }}
+              >
+                <div
+                  ref={(el) => {
+                    highlightRefs.current[token.id] = el;
+                  }}
+                  className="o-smart-token-text-highlight"
+                  aria-hidden="true"
+                >
+                  {renderHighlightedText(token.value, operationType)}
                 </div>
-              )}
-            </div>
-          )}
+                <input
+                  ref={(el) => {
+                    inputRefs.current[token.id] = el;
+                  }}
+                  type="text"
+                  size="1"
+                  className="o-smart-token-text-input o-smart-entry-input"
+                  value={token.value}
+                  onFocus={() => handleTokenFocus(token.id)}
+                  onClick={() => handleTokenClick(token.id)}
+                  onChange={(e) => handleTokenChange(token.id, e)}
+                  onKeyDown={(e) => handleKeyDown(token.id, index, e)}
+                  onPaste={handlePaste}
+                  onScroll={(e) => {
+                    if (highlightRefs.current[token.id]) {
+                      highlightRefs.current[token.id].scrollLeft = e.target.scrollLeft;
+                    }
+                  }}
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+              </div>
+            );
+          })}
 
-          {/* 4. Native Text Input with Autocomplete Selection */}
-          <div className="o-smart-token-input-field">
-            <input
-              ref={inputRef}
-              type="text"
-              className="o-smart-token-input o-smart-entry-input"
-              data-mode={amount === null ? "amount" : "standard"}
-              placeholder={getPlaceholder()}
-              value={currentInput}
-              onChange={handleInputChange}
-              onKeyDown={handleInputKeyDown}
-              onPaste={handlePaste}
-              spellCheck={false}
-              autoComplete="off"
-            />
-          </div>
-
-          {/* 5. Inline Dropdown Suggestions */}
-          {dropdownOpen && currentSuggestionsList.length > 0 && (
-            <div className="o-smart-token-dropdown" role="listbox">
-              {currentSuggestionsList.map((item, idx) => {
+          {/* Autocomplete Dropdown */}
+          {dropdownOpen && currentSuggestions.length > 0 && (
+            <div
+              className="o-smart-token-dropdown"
+              role="listbox"
+              style={dropdownMaxHeight ? { maxHeight: `${dropdownMaxHeight}px` } : undefined}
+            >
+              {currentSuggestions.map((item, idx) => {
                 const isSelected = idx === selectedIndex;
 
-                if (activeDropdownType === "category") {
+                if (dropdownType === "category") {
                   return (
                     <button
                       key={item.id}
@@ -940,13 +992,10 @@ export function SmartTokenInput({
                       data-selected={isSelected}
                       onMouseDown={(e) => {
                         e.preventDefault();
-                        confirmCategory(item);
+                        confirmSelection(item, "category");
                       }}
                     >
-                      <div className="a-flex a-gap-8 a-items-center">
-                        <i className={getCategoryIcon(item.name)} />
-                        <span>{item.name}</span>
-                      </div>
+                      <span>{item.name}</span>
                       {item.matchedAlias && (
                         <span className="a-clr-text-secondary a-text-s">({item.matchedAlias})</span>
                       )}
@@ -954,7 +1003,7 @@ export function SmartTokenInput({
                   );
                 }
 
-                if (activeDropdownType === "bank") {
+                if (dropdownType === "bank") {
                   return (
                     <button
                       key={item.id}
@@ -966,36 +1015,13 @@ export function SmartTokenInput({
                       data-selected={isSelected}
                       onMouseDown={(e) => {
                         e.preventDefault();
-                        confirmBank(item);
+                        confirmSelection(item, "bank");
                       }}
                     >
-                      <div className="a-flex a-gap-8 a-items-center">
-                        <i className="ri-bank-card-line" />
-                        <span>{item.name}</span>
-                      </div>
-                    </button>
-                  );
-                }
-
-                if (activeDropdownType === "date") {
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      role="option"
-                      tabIndex={-1}
-                      aria-selected={isSelected}
-                      className="o-smart-token-dropdown-item"
-                      data-selected={isSelected}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        confirmDate(item);
-                      }}
-                    >
-                      <div className="a-flex a-gap-8 a-items-center">
-                        <i className="ri-calendar-line" />
-                        <span>{item.label}</span>
-                      </div>
+                      <span>{item.name}</span>
+                      {item.matchedAlias && (
+                        <span className="a-clr-text-secondary a-text-s">({item.matchedAlias})</span>
+                      )}
                     </button>
                   );
                 }
@@ -1006,7 +1032,7 @@ export function SmartTokenInput({
           )}
         </div>
 
-        {/* 6. Sticky Date Dropdown to the right */}
+        {/* Sticky Date Dropdown */}
         <div ref={dateMenuRef} className="o-smart-date-dropdown-container">
           <button
             type="button"
@@ -1043,7 +1069,6 @@ export function SmartTokenInput({
             >
               <div className="o-smart-chip-popover-list">
                 {/* 1. Сегодня */}
-
                 <button
                   type="button"
                   className="o-smart-popover-item"
@@ -1051,13 +1076,14 @@ export function SmartTokenInput({
                   onClick={() => {
                     setDate(getLocalDateString());
                     setOpenDateMenu(false);
-                    inputRef.current?.focus();
+                    const lastText = [...tokens].reverse().find((t) => t.type === "text");
+                    if (lastText) inputRefs.current[lastText.id]?.focus();
                   }}
                 >
                   <span>Сегодня</span>
                 </button>
 
-                {/* 2. Прошлый месяц (дата последней записи за прошлый месяц + 1 день, если это не последний день месяца) */}
+                {/* 2. Прошлый месяц */}
                 <button
                   type="button"
                   className="o-smart-popover-item"
@@ -1066,7 +1092,8 @@ export function SmartTokenInput({
                     if (prevMonthTargetDate) {
                       setDate(prevMonthTargetDate);
                       setOpenDateMenu(false);
-                      inputRef.current?.focus();
+                      const lastText = [...tokens].reverse().find((t) => t.type === "text");
+                      if (lastText) inputRefs.current[lastText.id]?.focus();
                     }
                   }}
                 >
@@ -1100,7 +1127,8 @@ export function SmartTokenInput({
                       if (e.target.value) {
                         setDate(e.target.value);
                         setOpenDateMenu(false);
-                        inputRef.current?.focus();
+                        const lastText = [...tokens].reverse().find((t) => t.type === "text");
+                        if (lastText) inputRefs.current[lastText.id]?.focus();
                       }
                     }}
                     style={{
@@ -1123,26 +1151,10 @@ export function SmartTokenInput({
         </div>
       </div>
 
-      {/* Corrections and Math Badges */}
-      {(mathBreakdown || categoryCorrection?.wasCorrected) && (
-        <div className="a-flex a-gap-16 a-items-center">
-          {mathBreakdown && (
-            <span className="o-smart-entry-badge-correction a-clr-text-secondary">
-              <i className="ri-calculator-line" />
-              <span>
-                Сумма: {mathBreakdown} = <strong>{amount} ₽</strong>
-              </span>
-            </span>
-          )}
-          {categoryCorrection?.wasCorrected && (
-            <span className="o-smart-entry-badge-correction a-clr-text-secondary">
-              <i className="ri-magic-line" />
-              <span>
-                Категория исправлена: «{categoryCorrection.originalWord}» →{" "}
-                <strong>{categoryCorrection.matchedWord}</strong>
-              </span>
-            </span>
-          )}
+      {/* Math Breakdown Hint (only shown when multiple terms exist) */}
+      {mathHintLabel && (
+        <div className="o-smart-entry-math-hint">
+          <span>{mathHintLabel}</span>
         </div>
       )}
     </div>

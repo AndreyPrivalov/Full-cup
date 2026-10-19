@@ -1,21 +1,29 @@
+import { useCallback } from "react";
+import { useCategories } from "../hooks/useCategories";
+import { useUpdateOperation } from "../hooks/useUpdateOperation";
 import { formatDateShort } from "../utils";
 import { OperationRow } from "./OperationRow";
 import { SectionBlock } from "./SectionBlock";
 
 export function RecentOperations({ operations = [], newlyAddedIds = null }) {
+  const { data: categories = [] } = useCategories();
+  const updateMutation = useUpdateOperation();
+
+  const handleUpdate = useCallback(
+    (id, field, value) => {
+      updateMutation.mutate({ id, data: { [field]: value } });
+    },
+    [updateMutation],
+  );
+
   return (
     <SectionBlock
       title="Последние записи"
       subtitle={
-        <span className="a-clr-text-primary a-font-bold">
+        <span className="a-text-s a-clr-text-secondary">
           {operations.length > 0 && operations[0].date
             ? formatDateShort(operations[0].date)
             : "Нет записей"}
-        </span>
-      }
-      controls={
-        <span className="m-nav-item" data-size="s">
-          Все операции
         </span>
       }
       bodyClassName="m-operation-list"
@@ -29,6 +37,8 @@ export function RecentOperations({ operations = [], newlyAddedIds = null }) {
           operation={op}
           showBadges={true}
           isNew={Boolean(newlyAddedIds?.has(op.id))}
+          categories={categories}
+          onUpdate={(field, val) => handleUpdate(op.id, field, val)}
         />
       ))}
     </SectionBlock>

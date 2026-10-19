@@ -8,7 +8,7 @@ import { SectionBlock } from "./SectionBlock";
 
 export function CategoriesList({ type, title, data = [], controlPeriod, setControlPeriod }) {
   const isExpense = type === "expense";
-  const [activeTab, setActiveTab] = useState("current"); // 'current' or 'control'
+  const [activeTab, setActiveTab] = useState("current"); // 'current', 'previous', or 'control'
 
   const periodOptions = [
     { value: "прошлым месяцем", label: "прошлым месяцем" },
@@ -22,6 +22,7 @@ export function CategoriesList({ type, title, data = [], controlPeriod, setContr
     processedData,
     sum,
     prevSum,
+    controlSum,
     sumDiffValue,
     totalRowWidthPercent,
     totalGrayPercentInside,
@@ -42,6 +43,14 @@ export function CategoriesList({ type, title, data = [], controlPeriod, setContr
             onClick={() => setActiveTab("current")}
           >
             Текущий
+          </span>
+          <span
+            className="m-tab"
+            data-size="s"
+            data-active={activeTab === "previous"}
+            onClick={() => setActiveTab("previous")}
+          >
+            Предыдущий
           </span>
           <span
             className="m-tab"
@@ -76,6 +85,7 @@ export function CategoriesList({ type, title, data = [], controlPeriod, setContr
               icon={item.icon}
               currentValue={item.current_month}
               previousValue={item.previous_month}
+              controlValue={item.control_value}
               activeTab={activeTab}
               diffValue={item.diffValue}
               warning={item.warning}
@@ -90,21 +100,14 @@ export function CategoriesList({ type, title, data = [], controlPeriod, setContr
 
         <div className="o-category-total-row">
           <CategoryIcon name="Итого">
-            <span
-              style={{
-                fontWeight: "bold",
-                fontSize: "1.2rem",
-                lineHeight: "1",
-                paddingBottom: "2px",
-              }}
-            >
-              Σ
-            </span>
+            <span className="a-font-regular a-text-l">Σ</span>
           </CategoryIcon>
           <div className="o-category-row-value">
             {activeTab === "current"
               ? formatNumber(Math.round(sum))
-              : formatNumber(Math.round(prevSum))}
+              : activeTab === "previous"
+                ? formatNumber(Math.round(prevSum))
+                : formatNumber(Math.round(controlSum))}
           </div>
           <div
             className={`o-category-row-diff ${totalWarning ? "a-clr-text-semantic-error" : "a-clr-text-semantic-success"}`}

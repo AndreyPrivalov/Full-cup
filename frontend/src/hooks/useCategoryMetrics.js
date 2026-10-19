@@ -10,20 +10,25 @@ export function useCategoryMetrics(data = [], type) {
 
     let globalMax = 1;
     for (const item of rawFilteredData) {
+      const targetVal = item.control_value !== undefined ? item.control_value : item.previous_month;
       if (item.current_month > globalMax) globalMax = item.current_month;
       if (item.previous_month > globalMax) globalMax = item.previous_month;
+      if (targetVal > globalMax) globalMax = targetVal;
     }
 
     let sum = 0;
     let prevSum = 0;
+    let controlSum = 0;
     let sumDiffValue = 0;
 
     const processedData = rawFilteredData.map((item) => {
+      const targetVal = item.control_value !== undefined ? item.control_value : item.previous_month;
       sum += item.current_month;
       prevSum += item.previous_month;
+      controlSum += targetVal;
 
-      const diffValue = Math.abs(item.current_month - item.previous_month);
-      const itemMax = Math.max(item.current_month, item.previous_month);
+      const diffValue = Math.abs(item.current_month - targetVal);
+      const itemMax = Math.max(item.current_month, targetVal);
 
       sumDiffValue += diffValue;
 
@@ -33,8 +38,8 @@ export function useCategoryMetrics(data = [], type) {
       let colorPercentInside = 0;
       let diffColorClass = "";
 
-      if (item.current_month > item.previous_month) {
-        grayPercentInside = (item.previous_month / itemMax) * 100;
+      if (item.current_month > targetVal) {
+        grayPercentInside = (targetVal / itemMax) * 100;
         colorPercentInside = (diffValue / itemMax) * 100;
         diffColorClass = isExpense ? "a-bg-semantic-error" : "a-bg-semantic-success-hatched";
       } else {
@@ -43,12 +48,11 @@ export function useCategoryMetrics(data = [], type) {
         diffColorClass = isExpense ? "a-bg-semantic-success-hatched" : "a-bg-semantic-error";
       }
 
-      const warning = isExpense
-        ? item.current_month > item.previous_month
-        : item.current_month < item.previous_month;
+      const warning = isExpense ? item.current_month > targetVal : item.current_month < targetVal;
 
       return {
         ...item,
+        control_value: targetVal,
         icon: getCategoryIcon(item.name),
         totalWidthPercent,
         grayPercentInside,
@@ -59,15 +63,15 @@ export function useCategoryMetrics(data = [], type) {
       };
     });
 
-    const maxTotal = Math.max(Math.max(sum, prevSum), 1);
-    const totalRowWidthPercent = (Math.max(sum, prevSum) / maxTotal) * 100;
+    const maxTotal = Math.max(Math.max(sum, controlSum), 1);
+    const totalRowWidthPercent = (Math.max(sum, controlSum) / maxTotal) * 100;
 
     let totalGrayPercentInside = 0;
     let totalColorPercentInside = 0;
     let totalDiffColorClass = "";
 
-    if (sum > prevSum) {
-      totalGrayPercentInside = (prevSum / maxTotal) * 100;
+    if (sum > controlSum) {
+      totalGrayPercentInside = (controlSum / maxTotal) * 100;
       totalColorPercentInside = (sumDiffValue / maxTotal) * 100;
       totalDiffColorClass = isExpense ? "a-bg-semantic-error" : "a-bg-semantic-success-hatched";
     } else {
@@ -75,12 +79,13 @@ export function useCategoryMetrics(data = [], type) {
       totalColorPercentInside = (sumDiffValue / maxTotal) * 100;
       totalDiffColorClass = isExpense ? "a-bg-semantic-success-hatched" : "a-bg-semantic-error";
     }
-    const totalWarning = isExpense ? sum > prevSum : sum < prevSum;
+    const totalWarning = isExpense ? sum > controlSum : sum < controlSum;
 
     return {
       processedData,
       sum,
       prevSum,
+      controlSum,
       sumDiffValue,
       totalRowWidthPercent,
       totalGrayPercentInside,

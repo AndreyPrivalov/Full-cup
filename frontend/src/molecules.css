@@ -168,6 +168,9 @@ select.m-input {
   appearance: none;
   cursor: pointer;
 }
+select.m-input[data-size="s"] {
+  padding-right: var(--spc-24);
+}
 select.m-input[data-size="m"] {
   padding-right: var(--spc-32);
 }
@@ -225,8 +228,9 @@ input.m-editable-cell:not([type="date"]) {
   cursor: text;
 }
 
-/* Pointer cursor for selects and datepickers */
+/* Pointer cursor for selects, buttons and datepickers */
 select.m-editable-cell,
+button.m-editable-cell,
 .m-editable-cell-date,
 .m-editable-cell-select-wrapper,
 .m-editable-cell-select-wrapper select {
@@ -287,11 +291,24 @@ input[type="date"].m-editable-cell {
 }
 
 /* Button Icon Variants */
+.m-button[data-variant="icon"] {
+  background-color: transparent;
+  color: var(--clr-text-secondary);
+  padding: var(--spc-4);
+  border-radius: var(--radius-s);
+}
+
 .m-button[data-variant="icon-danger"] {
   background-color: transparent;
   color: var(--clr-text-secondary);
   padding: var(--spc-4);
   border-radius: var(--radius-s);
+}
+
+.m-button[data-size="s"] {
+  padding: var(--spc-4) var(--spc-8);
+  font-size: var(--font-size-s);
+  line-height: var(--line-height-s);
 }
 
 .m-button[data-size="m"] {
@@ -318,6 +335,15 @@ input[type="date"].m-editable-cell {
   font-family: var(--font-sans);
   font-size: var(--font-size-m);
   line-height: var(--line-height-m);
+}
+
+button.m-choice-label {
+  background: none;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Radio */
@@ -413,7 +439,7 @@ input[type="date"].m-editable-cell {
   display: grid;
   grid-template-columns: auto max-content minmax(0, 1fr) auto;
   column-gap: var(--spc-8);
-  row-gap: var(--spc-2);
+  row-gap: 0;
   width: 100%;
 }
 
@@ -427,6 +453,9 @@ input[type="date"].m-editable-cell {
   grid-template-columns: subgrid;
   align-items: center;
   width: 100%;
+  height: calc(var(--line-height-m) + var(--spc-2));
+  padding-bottom: var(--spc-2);
+  box-sizing: border-box;
 }
 
 .m-operation-list .m-operation-row-amount {
@@ -438,29 +467,48 @@ input[type="date"].m-editable-cell {
   grid-column: 3 / -1;
 }
 
+.m-operation-row .m-editable-cell {
+  padding: var(--spc-2) var(--spc-4);
+  font-size: var(--font-size-m);
+  line-height: var(--line-height-sd);
+  height: var(--line-height-m);
+}
+
+.m-operation-row-amount .m-editable-cell {
+  width: 5.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.m-operation-row-amount[data-variant="income"] .m-editable-cell {
+  color: var(--clr-text-semantic-success);
+}
+
 /* --- Operation Row Enter Animation --- */
 @keyframes m-operation-row-enter {
-  from {
+  0% {
     opacity: 0;
-    max-height: 0;
+    height: 0;
+    padding-bottom: 0;
   }
-  to {
+  100% {
     opacity: 1;
-    max-height: 1.75rem;
+    height: calc(var(--line-height-m) + var(--spc-2));
+    padding-bottom: var(--spc-2);
   }
 }
 
 .m-operation-row[data-new="true"] {
   min-height: 0;
   overflow: hidden;
-  animation: m-operation-row-enter 240ms ease-out forwards;
+  animation: m-operation-row-enter 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .m-operation-row[data-new="true"] {
     animation: none;
     min-height: auto;
-    max-height: none;
+    height: calc(var(--line-height-m) + var(--spc-2));
+    padding-bottom: var(--spc-2);
     overflow: visible;
   }
 }
@@ -527,4 +575,130 @@ input[type="date"].m-editable-cell {
   padding: var(--spc-12) var(--spc-16);
   font-size: var(--font-size-m);
   line-height: var(--line-height-m);
+}
+
+/* --- Toast --- */
+.m-toast {
+  position: fixed;
+  bottom: var(--spc-24);
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--clr-bg-accent);
+  color: var(--clr-text-inverse);
+  padding: var(--spc-8) var(--spc-16);
+  border-radius: var(--radius-m);
+  font-size: var(--font-size-s);
+  line-height: var(--line-height-sd);
+  font-weight: var(--font-weight-regular);
+  z-index: 1000;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spc-8);
+}
+
+.m-toast-action {
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: var(--clr-text-inverse);
+  text-decoration: underline;
+  padding: 0;
+  font-size: var(--font-size-s);
+  font-weight: var(--font-weight-bold);
+  font-family: inherit;
+}
+
+/* --- Sync Indicator Molecule --- */
+.m-sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  width: var(--spc-24);
+  height: var(--spc-24);
+  padding: 0;
+  border-radius: var(--radius-circle);
+  user-select: none;
+  box-sizing: border-box;
+  color: var(--clr-text-secondary);
+  transition: background-color 0.15s ease;
+}
+
+.m-sync-indicator:hover {
+  background-color: var(--clr-control-default);
+}
+
+.m-sync-indicator:focus-visible {
+  outline: 2px solid var(--clr-border-interactive);
+}
+
+.m-sync-dot {
+  width: var(--spc-8);
+  height: var(--spc-8);
+  border-radius: var(--radius-circle);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.m-sync-dot[data-status="idle"] {
+  background-color: var(--clr-bg-semantic-success);
+}
+
+.m-sync-dot[data-status="error"] {
+  background-color: var(--clr-bg-semantic-error);
+}
+
+.m-sync-dot[data-status="saving"] {
+  background-color: var(--clr-bg-semantic-success);
+  animation: m-sync-pulse 1s ease-in-out infinite;
+}
+
+.m-sync-dot[data-status="not_synced"] {
+  background-color: var(--clr-text-secondary);
+}
+
+.m-sync-dot[data-status="not_configured"] {
+  background-color: var(--clr-border-primary);
+}
+
+@keyframes m-sync-pulse {
+  0% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-sync-dot[data-status="saving"] {
+    animation: none;
+    opacity: 0.7;
+  }
+  .m-sync-spin {
+    animation: none;
+  }
+}
+
+.m-sync-spin {
+  display: inline-block;
+  animation: m-sync-spin-anim 1s linear infinite;
+}
+
+@keyframes m-sync-spin-anim {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

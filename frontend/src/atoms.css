@@ -3,6 +3,9 @@
    ========================================== */
 
 /* Layout & Flexbox */
+.a-relative {
+  position: relative;
+}
 .a-flex {
   display: flex;
 }
@@ -299,6 +302,9 @@
 }
 .a-whitespace-nowrap {
   white-space: nowrap;
+}
+.a-whitespace-pre-line {
+  white-space: pre-line;
 }
 .a-text-truncate {
   white-space: nowrap;

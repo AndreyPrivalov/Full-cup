@@ -1,8 +1,7 @@
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { savings } from "../schema.js";
 
-export const insertSavingsSchema = createInsertSchema(savings, {
+export const insertSavingsSchema = z.object({
+  id: z.number().int().positive().optional(),
   date: z.string().min(1, "Дата обязательна"),
   cash: z.number().min(0, "Наличные должны быть числом >= 0"),
   electronic: z.number().min(0, "Электронные деньги должны быть числом >= 0"),

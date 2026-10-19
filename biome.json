@@ -24,6 +24,21 @@
       }
     }
   },
+  "javascript": {
+    "globals": ["SpreadsheetApp", "ContentService", "LockService"]
+  },
+  "overrides": [
+    {
+      "includes": ["scripts/google_apps_script.js"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off"
+          }
+        }
+      }
+    }
+  ],
   "formatter": {
     "enabled": true,
     "indentStyle": "space",

@@ -15,7 +15,9 @@ export function SectionBlock({
             className="a-flex a-justify-between a-items-center a-text-s"
             style={{ minHeight: "32px" }}
           >
-            <div className="a-flex a-gap-8 a-items-center">{subtitle}</div>
+            <div className="a-flex a-gap-8 a-items-center a-text-s a-clr-text-secondary">
+              {subtitle}
+            </div>
             {controls && <div>{controls}</div>}
           </div>
         )}

@@ -1,11 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { insertTransactionSchema } from "shared/schemas/transactions.js";
-import { api } from "../api";
 import { useAddOperation } from "../hooks/useAddOperation";
 import { useCategories } from "../hooks/useCategories";
 import { useDashboard } from "../hooks/useDashboard";
 import { useEntityList } from "../hooks/useEntityList";
+import { useRecentOperations } from "../hooks/useRecentOperations.js";
 import { getLocalDateString, getPrevMonthToDateString } from "../utils";
 import { BudgetsList } from "./BudgetsList";
 import { CategoriesList } from "./CategoriesList";
@@ -42,14 +41,7 @@ export function DashboardView({ operationType = "expense" }) {
     isError: isDashboardError,
   } = useDashboard(formattedPeriod);
 
-  const {
-    data: recentOperations = [],
-    isLoading: isOperationsLoading,
-    isError: isOperationsError,
-  } = useQuery({
-    queryKey: ["recent-operations", type],
-    queryFn: () => api.getRecentOperations(10, type),
-  });
+  const { data: recentOperations = [] } = useRecentOperations({ limit: 10, type });
 
   const handleTypeChange = useCallback((newType) => {
     setType(newType);
@@ -63,6 +55,20 @@ export function DashboardView({ operationType = "expense" }) {
       const selectedCatId = operationData.category_id ? Number(operationData.category_id) : null;
       const selectedBank =
         type === "expense" && operationData.bank_id ? Number(operationData.bank_id) : null;
+      const selectedBankIds =
+        type === "expense" &&
+        Array.isArray(operationData.bank_ids) &&
+        operationData.bank_ids.length > 0
+          ? operationData.bank_ids
+          : selectedBank
+            ? [selectedBank]
+            : [];
+      const selectedBankAmount =
+        type === "expense" && operationData.bank_amount != null
+          ? Number(operationData.bank_amount)
+          : selectedBankIds.length > 0
+            ? numAmount
+            : null;
 
       const validation = insertTransactionSchema.safeParse({
         type,
@@ -70,7 +76,9 @@ export function DashboardView({ operationType = "expense" }) {
         amount: numAmount,
         category_id: selectedCatId,
         comment: operationData.comment || "",
-        bank_id: selectedBank || undefined,
+        bank_id: selectedBankIds[0] || undefined,
+        bank_ids: selectedBankIds.length > 0 ? selectedBankIds : undefined,
+        bank_amount: selectedBankAmount || undefined,
       });
 
       if (!validation.success) {
@@ -88,7 +96,9 @@ export function DashboardView({ operationType = "expense" }) {
           amount: numAmount,
           category_id: selectedCatId,
           comment: operationData.comment || "",
-          bank_id: selectedBank,
+          bank_id: selectedBankIds[0] || null,
+          bank_ids: selectedBankIds,
+          bank_amount: selectedBankAmount,
         },
         {
           onSuccess: (result) => {
@@ -96,10 +106,19 @@ export function DashboardView({ operationType = "expense" }) {
             setApiError("");
             const ids = result?.ids || (result?.id ? [result.id] : []);
             if (ids.length > 0) {
-              setNewlyAddedIds(new Set(ids));
+              setNewlyAddedIds((prev) => {
+                const next = new Set(prev || []);
+                for (const id of ids) next.add(id);
+                return next;
+              });
               setTimeout(() => {
-                setNewlyAddedIds(null);
-              }, 800);
+                setNewlyAddedIds((prev) => {
+                  if (!prev) return null;
+                  const next = new Set(prev);
+                  for (const id of ids) next.delete(id);
+                  return next.size > 0 ? next : null;
+                });
+              }, 1000);
             }
           },
           onError: (err) => {
@@ -111,14 +130,14 @@ export function DashboardView({ operationType = "expense" }) {
     [type, addOperationMutation],
   );
 
-  if ((isDashboardLoading && !dashboard) || (isOperationsLoading && !recentOperations.length))
+  if (isDashboardLoading && !dashboard)
     return <div className="a-text-m a-clr-text-secondary a-mt-24">Загрузка данных...</div>;
-  if (isDashboardError || isOperationsError)
+  if (isDashboardError)
     return <div className="a-text-m a-clr-text-semantic-error a-mt-24">Ошибка загрузки данных</div>;
   if (!dashboard) return <div className="a-text-m a-clr-text-secondary a-mt-24">Нет данных</div>;
 
   return (
-    <div className="a-flex a-flex-col a-gap-32" style={{ width: "100%" }}>
+    <div className="a-flex a-flex-col a-gap-32 a-w-full">
       {/* Smart Operation Entry on Top */}
       <div className="o-smart-entry">
         <div className="o-smart-entry-header">
@@ -187,3 +206,5 @@ export function DashboardView({ operationType = "expense" }) {
     </div>
   );
 }
+
+export default DashboardView;

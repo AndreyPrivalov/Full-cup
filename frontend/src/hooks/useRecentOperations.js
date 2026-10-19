@@ -3,7 +3,7 @@ import { api } from "../api";
 
 export function useRecentOperations({ limit = 10, type } = {}) {
   return useQuery({
-    queryKey: ["recent-operations", { limit, type }],
+    queryKey: ["recent-operations", type],
     queryFn: () => api.getRecentOperations(limit, type),
   });
 }

@@ -44,21 +44,4 @@ export function PageContainer({ variant = "single", left, right, children, class
   );
 }
 
-/**
- * Backward-compatible PageGrid component.
- *
- * @param {Object} props
- * @param {number} [props.columns=1]
- * @param {React.ReactNode} props.children
- * @param {string} [props.className=""]
- */
-export function PageGrid({ columns = 1, children, className = "" }) {
-  return (
-    <PageContainer variant={columns === 2 ? "two-column" : "single"} className={className}>
-      {children}
-    </PageContainer>
-  );
-}
-
 PageContainer.Column = PageColumn;
-PageContainer.Grid = PageGrid;

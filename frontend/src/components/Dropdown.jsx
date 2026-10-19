@@ -28,26 +28,24 @@ export function Dropdown({
           </option>
         ))}
       </select>
-      {size !== "s" && (
-        <i
-          className="ri-arrow-down-s-line"
-          style={{
-            position: "absolute",
-            right: rightSpc,
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: "var(--clr-text-disabled)",
-            pointerEvents: "none",
-            fontSize: iconSize,
-          }}
-        ></i>
-      )}
+      <i
+        className="ri-arrow-down-s-line"
+        style={{
+          position: "absolute",
+          right: rightSpc,
+          top: "50%",
+          transform: "translateY(-50%)",
+          color: "var(--clr-text-secondary)",
+          pointerEvents: "none",
+          fontSize: iconSize,
+        }}
+      ></i>
     </div>
   );
 
   if (label) {
     return (
-      <div className={`a-flex a-items-center a-gap-4 ${className}`}>
+      <div className={`a-flex a-items-center a-gap-8 ${className}`}>
         <span className="a-clr-text-primary a-whitespace-nowrap">{label}</span>
         <div>{selectNode}</div>
       </div>

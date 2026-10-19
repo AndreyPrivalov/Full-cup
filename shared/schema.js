@@ -24,9 +24,27 @@ export const transactions = sqliteTable("transactions", {
   type: text("type", { enum: ["income", "expense"] }).notNull(),
   category_id: integer("category_id").references(() => categories.id),
   bank_id: integer("bank_id").references(() => banks.id),
+  bank_amount: real("bank_amount"),
   date: text("date").notNull(),
   comment: text("comment"),
 });
+
+export const transactionBanks = sqliteTable(
+  "transaction_banks",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    transaction_id: integer("transaction_id")
+      .notNull()
+      .references(() => transactions.id, { onDelete: "cascade" }),
+    bank_id: integer("bank_id")
+      .notNull()
+      .references(() => banks.id, { onDelete: "cascade" }),
+    amount: real("amount").notNull(),
+  },
+  (t) => ({
+    unq: unique().on(t.transaction_id, t.bank_id),
+  }),
+);
 
 export const savings = sqliteTable("savings", {
   id: integer("id").primaryKey({ autoIncrement: true }),

@@ -19,6 +19,11 @@ const monthYearFormatter = new Intl.DateTimeFormat("ru-RU", {
   year: "numeric",
 });
 
+const dayMonthFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "numeric",
+  month: "short",
+});
+
 export const getPrevMonthToDateString = () => {
   const d = new Date();
   const currentDay = d.getDate();
@@ -95,6 +100,20 @@ export const formatNumber = (num) => {
 export const formatDateShort = (dateInput) => {
   if (!dateInput) return "";
   try {
+    if (typeof dateInput === "string" && dateInput.includes("-")) {
+      const parts = dateInput.split("-");
+      if (parts.length >= 3) {
+        const y = Number.parseInt(parts[0], 10);
+        const m = Number.parseInt(parts[1], 10) - 1;
+        const d = Number.parseInt(parts[2].slice(0, 2), 10);
+        if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(d)) {
+          return shortDateFormatter
+            .format(new Date(y, m, d))
+            .replace(" г.", "")
+            .replace(".", "");
+        }
+      }
+    }
     const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
     return shortDateFormatter.format(d).replace(" г.", "").replace(".", "");
   } catch (_e) {
@@ -116,6 +135,26 @@ const RU_MONTHS_SHORT = [
   "ноя",
   "дек",
 ];
+
+export const formatDateDayMonth = (dateInput) => {
+  if (!dateInput) return "";
+  try {
+    if (typeof dateInput === "string" && dateInput.includes("-")) {
+      const parts = dateInput.split("-");
+      if (parts.length >= 3) {
+        const day = Number.parseInt(parts[2].slice(0, 2), 10);
+        const monthIndex = Number.parseInt(parts[1], 10) - 1;
+        if (monthIndex >= 0 && monthIndex < 12 && !Number.isNaN(day)) {
+          return `${day} ${RU_MONTHS_SHORT[monthIndex]}`;
+        }
+      }
+    }
+    const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+    return dayMonthFormatter.format(d).replace(".", "").trim();
+  } catch (_e) {
+    return String(dateInput);
+  }
+};
 
 export const parseMonthYear = (dateInput) => {
   if (!dateInput) return { month: "", year: "", isJanuary: false };
@@ -149,12 +188,6 @@ export const parseMonthYear = (dateInput) => {
   }
 };
 
-export const formatCompactMonthYear = (dateInput) => {
-  const { month, year } = parseMonthYear(dateInput);
-  if (!month) return "";
-  return year ? `${month} ${year}` : month;
-};
-
 export const formatDateMonthYear = (dateInput) => {
   if (!dateInput) return "";
   try {
@@ -165,49 +198,21 @@ export const formatDateMonthYear = (dateInput) => {
   }
 };
 
-export function getLocalDateString(d = new Date()) {
-  const date = d instanceof Date ? d : new Date(d);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+import {
+  getCurrentMonthRange,
+  getCurrentYearRange,
+  getLocalDateString,
+  getLocalMonthString,
+  getPreviousMonthRange,
+} from "shared";
 
-export function getLocalMonthString(d = new Date()) {
-  const date = d instanceof Date ? d : new Date(d);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
-
-export function getCurrentMonthRange(d = new Date()) {
-  const date = d instanceof Date ? d : new Date(d);
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  const end = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  return { start, end };
-}
-
-export function getPreviousMonthRange(d = new Date()) {
-  const date = d instanceof Date ? d : new Date(d);
-  const year = date.getMonth() === 0 ? date.getFullYear() - 1 : date.getFullYear();
-  const month = date.getMonth() === 0 ? 11 : date.getMonth() - 1;
-  const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  const end = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  return { start, end };
-}
-
-export function getCurrentYearRange(d = new Date()) {
-  const date = d instanceof Date ? d : new Date(d);
-  const year = date.getFullYear();
-  return {
-    start: `${year}-01-01`,
-    end: `${year}-12-31`,
-  };
-}
+export {
+  getCurrentMonthRange,
+  getCurrentYearRange,
+  getLocalDateString,
+  getLocalMonthString,
+  getPreviousMonthRange,
+};
 
 export function getPrevMonthTargetDate(lastEntryDateStr, referenceDate = new Date()) {
   const { start, end } = getPreviousMonthRange(referenceDate);
@@ -228,4 +233,10 @@ export function getPrevMonthTargetDate(lastEntryDateStr, referenceDate = new Dat
   return `${y}-${monthStr}-${dayStr}`;
 }
 
+export { splitBankAmount } from "shared/splitBankAmount.js";
 export * from "./smartInputParser.js";
+export {
+  BANK_KEYWORD_HIGHLIGHT_REGEX,
+  BANK_KEYWORD_SPLIT_REGEX,
+  BANK_KEYWORDS_REGEX,
+} from "./smartInputParser.js";

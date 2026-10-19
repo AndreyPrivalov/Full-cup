@@ -7,6 +7,7 @@ export const CategoryBar = memo(function CategoryBar({
   icon,
   currentValue,
   previousValue,
+  controlValue,
   activeTab,
   diffValue,
   warning,
@@ -16,7 +17,12 @@ export const CategoryBar = memo(function CategoryBar({
   diffColorClass,
   isExpense,
 }) {
-  const displayValue = activeTab === "current" ? currentValue : previousValue;
+  let displayValue = currentValue;
+  if (activeTab === "previous") {
+    displayValue = previousValue;
+  } else if (activeTab === "control") {
+    displayValue = controlValue !== undefined ? controlValue : previousValue;
+  }
 
   return (
     <div className="o-category-row">

@@ -1,11 +1,18 @@
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { transactions } from "../schema.js";
 
-export const insertTransactionSchema = createInsertSchema(transactions, {
+export const insertTransactionSchema = z.object({
+  id: z.number().int().positive().optional(),
   amount: z.number().positive("Сумма должна быть больше нуля"),
   type: z.enum(["income", "expense"], { required_error: "Тип операции обязателен" }),
   date: z.string().min(1, "Дата обязательна"),
+  category_id: z.number().nullable().optional(),
+  comment: z.string().nullable().optional(),
+  bank_id: z
+    .union([z.number(), z.array(z.number())])
+    .nullable()
+    .optional(),
+  bank_ids: z.array(z.number()).nullable().optional(),
+  bank_amount: z.number().positive().nullable().optional(),
 });
 
 export const updateTransactionSchema = z.object({
@@ -17,6 +24,11 @@ export const updateTransactionSchema = z.object({
     .optional(),
   date: z.string().min(1, "Дата не может быть пустой").optional(),
   category_id: z.number().nullable().optional(),
-  bank_id: z.number().nullable().optional(),
+  bank_id: z
+    .union([z.number(), z.array(z.number())])
+    .nullable()
+    .optional(),
+  bank_ids: z.array(z.number()).nullable().optional(),
+  bank_amount: z.number().positive().nullable().optional(),
   comment: z.string().nullable().optional(),
 });

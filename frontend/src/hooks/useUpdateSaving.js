@@ -1,11 +1,19 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { googleSheetsSync } from "../utils/googleSheetsSync";
 
 export const useUpdateSaving = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ id, data }) => api.updateSaving(id, data),
+    onSuccess: (_result, { id, data }) => {
+      googleSheetsSync.enqueueAction({
+        type: "UPDATE_SAVING",
+        id,
+        data,
+      });
+    },
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: ["savings"] });
       const previousSavings = queryClient.getQueryData(["savings"]);

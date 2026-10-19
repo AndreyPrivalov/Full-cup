@@ -54,6 +54,7 @@ export const EditableCell = memo(function EditableCell({
   className = "",
   options = [],
   title: customTitle,
+  multiline = false,
 }) {
   const [currentValue, setCurrentValue] = useState(value ?? "");
   const [isFocused, setIsFocused] = useState(false);
@@ -65,6 +66,9 @@ export const EditableCell = memo(function EditableCell({
 
   const handleBlur = () => {
     setIsFocused(false);
+    if (type === "select" || type === "date") {
+      return;
+    }
     if (type === "number") {
       const num = parseNumberClean(currentValue);
       const prevNum = parseNumberClean(value);
@@ -109,6 +113,11 @@ export const EditableCell = memo(function EditableCell({
           data-context={context}
           data-size={size}
           value={currentValue ?? ""}
+          title={
+            customTitle ||
+            options.find((o) => String(o.value) === String(currentValue))?.label ||
+            undefined
+          }
           onChange={(e) => {
             const val = e.target.value;
             setCurrentValue(val);
@@ -144,7 +153,12 @@ export const EditableCell = memo(function EditableCell({
 
   // Date picker
   if (type === "date") {
-    const formatted = currentValue ? formatDateShort(currentValue) : placeholder || "—";
+    const formatted =
+      displayValue !== undefined
+        ? displayValue
+        : currentValue
+          ? formatDateShort(currentValue)
+          : placeholder || "—";
     const isoDate = currentValue ? String(currentValue).slice(0, 10) : "";
 
     return (
@@ -221,6 +235,52 @@ export const EditableCell = memo(function EditableCell({
     } else if (currentValue === null || currentValue === "") {
       showValue = "—";
     }
+  }
+
+  if (type === "text" && multiline) {
+    if (!isFocused) {
+      return (
+        <button
+          type="button"
+          className={`m-input m-editable-cell m-editable-cell--multiline ${alignClass} ${className}`.trim()}
+          data-context={context}
+          data-size={size}
+          onFocus={() => setIsFocused(true)}
+          onClick={() => setIsFocused(true)}
+          title={customTitle !== undefined ? customTitle : "Нажмите, чтобы изменить"}
+        >
+          <span>{showValue}</span>
+        </button>
+      );
+    }
+
+    return (
+      <textarea
+        ref={(el) => {
+          if (el) {
+            el.focus();
+            const len = el.value.length;
+            el.setSelectionRange(len, len);
+          }
+        }}
+        className={`m-input m-editable-cell m-editable-cell--multiline ${alignClass} ${className}`.trim()}
+        data-context={context}
+        data-size={size}
+        value={currentValue ?? ""}
+        onChange={(e) => setCurrentValue(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            e.target.blur();
+          } else if (e.key === "Escape") {
+            setCurrentValue(value ?? "");
+            e.target.blur();
+          }
+        }}
+        placeholder={placeholder}
+      />
+    );
   }
 
   return (

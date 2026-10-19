@@ -1,4 +1,13 @@
-const API_URL = `http://${window.location.hostname}:3001/api`;
+const getApiBaseUrl = () => {
+  if (typeof window === "undefined") return "http://localhost:3001/api";
+  if (import.meta.env?.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (import.meta.env?.DEV) {
+    return `http://${window.location.hostname}:3001/api`;
+  }
+  return `${window.location.origin}/api`;
+};
+
+const API_URL = getApiBaseUrl();
 
 const handleResponse = async (response) => {
   if (!response.ok) {
@@ -82,6 +91,21 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(handleResponse),
+  batchUpdateOperations: (ids, data) =>
+    fetch(`${API_URL}/transactions/batch`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, data }),
+    }).then(handleResponse),
+  batchDeleteOperations: (ids) =>
+    fetch(`${API_URL}/transactions/batch`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }).then((res) => {
+      if (!res.ok) throw new Error("Ошибка при пакетном удалении операций");
+      return null;
+    }),
 
   // Накопления
   getSavings: () => fetch(`${API_URL}/savings`).then(handleResponse),
@@ -106,5 +130,38 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "text/csv; charset=utf-8" },
       body: csvText,
+    }).then(handleResponse),
+
+  // Синхронизация с Google Таблицами
+  getSheetsBundle: () => fetch(`${API_URL}/backup/sheets-bundle`).then(handleResponse),
+  restoreFromSheets: (data) =>
+    fetch(`${API_URL}/backup/sheets-restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+  testGoogleSheets: (url) =>
+    fetch(`${API_URL}/backup/google-sheets/test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    }).then(handleResponse),
+  postGoogleSheetsBatch: (url, actions) =>
+    fetch(`${API_URL}/backup/google-sheets/batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, actions }),
+    }).then(handleResponse),
+  pushGoogleSheetsFull: (url) =>
+    fetch(`${API_URL}/backup/google-sheets/push`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    }).then(handleResponse),
+  pullGoogleSheetsFull: (url) =>
+    fetch(`${API_URL}/backup/google-sheets/pull`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
     }).then(handleResponse),
 };

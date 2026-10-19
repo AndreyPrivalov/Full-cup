@@ -56,6 +56,7 @@ router.post(
       const lastRecord = db.select().from(savings).orderBy(desc(savings.date)).limit(1).get();
       if (lastRecord) {
         const dateObj = new Date(lastRecord.date);
+        dateObj.setDate(1);
         dateObj.setMonth(dateObj.getMonth() + 1);
         newDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-01`;
       } else {
