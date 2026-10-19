@@ -39,6 +39,7 @@ export function DashboardView({ operationType = "expense" }) {
     data: dashboard,
     isLoading: isDashboardLoading,
     isError: isDashboardError,
+    error: dashboardError,
   } = useDashboard(formattedPeriod);
 
   const { data: recentOperations = [] } = useRecentOperations({ limit: 10, type });
@@ -133,7 +134,11 @@ export function DashboardView({ operationType = "expense" }) {
   if (isDashboardLoading && !dashboard)
     return <div className="a-text-m a-clr-text-secondary a-mt-24">Загрузка данных...</div>;
   if (isDashboardError)
-    return <div className="a-text-m a-clr-text-semantic-error a-mt-24">Ошибка загрузки данных</div>;
+    return (
+      <div className="a-text-m a-clr-text-semantic-error a-mt-24">
+        Ошибка загрузки данных: {dashboardError?.message || "Проверьте подключение к базе"}
+      </div>
+    );
   if (!dashboard) return <div className="a-text-m a-clr-text-secondary a-mt-24">Нет данных</div>;
 
   return (

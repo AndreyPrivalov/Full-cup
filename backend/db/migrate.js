@@ -2,6 +2,16 @@ import { DEFAULT_CATEGORIES } from "./defaultCategories.js";
 import { client as defaultClient } from "./index.js";
 
 export async function runMigrations(client = defaultClient) {
+  // Fast path for serverless: if schema is already initialized, return immediately (~50ms)
+  try {
+    const check = await client.execute("SELECT 1 FROM categories LIMIT 1");
+    if (check?.rows) {
+      return;
+    }
+  } catch {
+    // Schema doesn't exist yet, proceed with full migration
+  }
+
   console.log("Checking database schema updates...");
 
   // 1. Ensure core schema tables exist

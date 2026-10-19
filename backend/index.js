@@ -66,6 +66,30 @@ app.get(["/api/health", "/health", "/api"], (_req, res) => {
   res.json({ status: "ok" });
 });
 
+app.get(["/api/diagnostic", "/diagnostic"], async (_req, res) => {
+  const { isTurso, tursoUrl } = await import("./db/index.js");
+  const info = {
+    vercel: Boolean(process.env.VERCEL),
+    tursoConfigured: isTurso,
+    tursoHost: tursoUrl ? tursoUrl.split("@").pop()?.split("?")[0] : null,
+  };
+  try {
+    const { getDatabaseStats } = await import("./services/backupService.js");
+    const stats = await getDatabaseStats();
+    res.json({
+      status: "ok",
+      ...info,
+      stats,
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: "error",
+      ...info,
+      error: err.message,
+    });
+  }
+});
+
 mountRouter("/api/categories", categoriesRouter);
 mountRouter("/api/banks", banksRouter);
 mountRouter("/api/transactions", transactionsRouter);
