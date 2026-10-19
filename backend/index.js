@@ -42,8 +42,17 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.text({ type: ["text/csv", "text/plain"], limit: "50mb" }));
 
+// Normalize Vercel serverless rewritten URL if needed
+app.use((req, _res, next) => {
+  if (req.url.startsWith("/api/index.js")) {
+    const stripped = req.url.slice("/api/index.js".length);
+    req.url = stripped ? (stripped.startsWith("/") ? stripped : `/${stripped}`) : "/";
+  }
+  next();
+});
+
 // --- Lightweight health check (no DB dependency) ---
-app.get(["/api/health", "/health", "/api"], (_req, res) => {
+app.get(["/api/health", "/health", "/api", "/"], (_req, res) => {
   res.json({ status: "ok" });
 });
 

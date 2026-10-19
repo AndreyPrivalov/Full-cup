@@ -27,6 +27,11 @@
     "shared"
   ],
   "dependencies": {
-    "drizzle-orm": "^0.45.2"
+    "@libsql/client": "^0.18.0",
+    "cors": "^2.8.6",
+    "drizzle-orm": "^0.45.2",
+    "express": "^5.2.1",
+    "shared": "*",
+    "zod": "^3.23.8"
   }
 }
