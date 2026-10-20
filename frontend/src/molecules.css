@@ -403,6 +403,18 @@ button.m-choice-label {
   gap: var(--spc-8);
 }
 
+.m-operation-row:hover {
+  position: relative;
+  z-index: 10;
+}
+
+.m-operation-row > .a-flex:last-child .o-category-row-tooltip {
+  left: auto;
+  right: 0;
+  top: calc(100% + var(--spc-4));
+  transform: none;
+}
+
 .m-operation-row-amount {
   width: 5rem;
   flex-shrink: 0;

@@ -36,10 +36,26 @@ export const useUpdateOperation = () => {
       const snapshot = captureOperationCacheSnapshot(queryClient);
 
       const previousOperations = queryClient.getQueryData(["operations"]);
-      const currentOp =
+      let currentOp =
         previousOperations?.find((op) => op.id === id) ||
         queryClient.getQueryData(["recent-operations", "expense"])?.find((op) => op.id === id) ||
         queryClient.getQueryData(["recent-operations", "income"])?.find((op) => op.id === id);
+
+      if (!currentOp) {
+        const monthQueries = queryClient
+          .getQueryCache()
+          .findAll({ queryKey: ["operations", "month"] });
+        for (const q of monthQueries) {
+          const list = q.state.data;
+          if (Array.isArray(list)) {
+            const found = list.find((op) => op.id === id);
+            if (found) {
+              currentOp = found;
+              break;
+            }
+          }
+        }
+      }
 
       const categories = queryClient.getQueryData(["categories"]) || [];
       const banks = queryClient.getQueryData(["banks"]) || [];

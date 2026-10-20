@@ -97,7 +97,11 @@ export const OperationRow = memo(function OperationRow({
 
       {showBadges && Boolean(op.bank_id || (op.bank_ids && op.bank_ids.length > 0)) && (
         <div className="a-flex a-items-center a-shrink-0">
-          <CategoryIcon icon="ri-emotion-line a-text-l" name={op.bank_name || "Кайф-баланс"} />
+          <CategoryIcon
+            icon="ri-emotion-line a-text-l"
+            name={op.bank_name || "Кайф-баланс"}
+            tooltipPlacement="bottom-right"
+          />
         </div>
       )}
     </div>

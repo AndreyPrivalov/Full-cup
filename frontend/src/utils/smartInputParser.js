@@ -312,6 +312,116 @@ export const BANK_ALIASES = {
 };
 
 /**
+ * Порядок популярности категорий по числу операций за последний год.
+ */
+export const CATEGORY_POPULARITY_ORDER = [
+  // Расходы
+  "Продукты",
+  "Обустройство дома",
+  "Быт",
+  "Подарок",
+  "Здоровье",
+  "Дорога",
+  "Техника",
+  "Кафе и рестораны",
+  "Одежда",
+  "Развлечения и хобби",
+  "Красота",
+  "Другое",
+  "Образование",
+  // Доходы
+  "Работа",
+  "Инвестиции",
+  "Родители",
+  "Стипендия",
+];
+
+/**
+ * Сортирует массив категорий по популярности за последний год.
+ */
+export function sortCategoriesByPopularity(categories = []) {
+  if (!categories?.length) return [];
+  return [...categories].sort((a, b) => {
+    const rankA = CATEGORY_POPULARITY_ORDER.indexOf(a.name);
+    const rankB = CATEGORY_POPULARITY_ORDER.indexOf(b.name);
+    const effA = rankA === -1 ? 999 : rankA;
+    const effB = rankB === -1 ? 999 : rankB;
+    if (effA !== effB) return effA - effB;
+    return a.name.localeCompare(b.name, "ru");
+  });
+}
+
+/**
+ * Normalizes thousands separators (spaces between digits) within text:
+ * E.g. '1 000' -> '1000', '1 000 000' -> '1000000'.
+ */
+export function normalizeNumberSpaces(str) {
+  if (!str || typeof str !== "string") return "";
+  let res = str;
+  const regex = /(?<=(?:^|[^a-zA-Zа-яёА-ЯЁ0-9_])\d{1,3})\s+(?=\d{2,4}(?:[^a-zA-Zа-яёА-ЯЁ0-9_]|$))/g;
+  while (regex.test(res)) {
+    res = res.replace(regex, "");
+  }
+  return res;
+}
+
+/**
+ * Formats standalone numbers in text with thousands separators:
+ * E.g. '15000 кофе' -> '15 000 кофе', '1000 + 50000' -> '1 000 + 50 000'.
+ */
+export function formatNumbersInText(text) {
+  if (!text || typeof text !== "string") return "";
+  const clean = normalizeNumberSpaces(text);
+  const regex = /(?:^|(?<=[^a-zA-Zа-яёА-ЯЁ0-9_]))(\d+(?:[.,]\d+)?)(?![a-zA-Zа-яёА-ЯЁ0-9_])/g;
+  return clean.replace(regex, (match) => {
+    const parts = match.split(/([.,])/);
+    const intPart = parts[0];
+    const decPart = parts.length > 1 ? parts.slice(1).join("") : "";
+    const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return formattedInt + decPart;
+  });
+}
+
+/**
+ * Formats text with numbers while recalculating and preserving the cursor position.
+ */
+export function formatTextWithCursor(text, cursorPos = 0) {
+  if (!text || typeof text !== "string") {
+    return { formatted: "", newCursorPos: 0 };
+  }
+
+  const beforeCursor = text.slice(0, cursorPos);
+  const trimmedBefore = beforeCursor.trimEnd();
+  const trailingSpaces = beforeCursor.length - trimmedBefore.length;
+  let nonSpacesBefore = 0;
+  for (let i = 0; i < trimmedBefore.length; i++) {
+    if (trimmedBefore[i] !== " ") nonSpacesBefore++;
+  }
+
+  const formatted = formatNumbersInText(text);
+
+  let newCursorPos = 0;
+  let seen = 0;
+  if (nonSpacesBefore === 0) {
+    newCursorPos = Math.min(trailingSpaces, formatted.length);
+  } else {
+    while (newCursorPos < formatted.length && seen < nonSpacesBefore) {
+      if (formatted[newCursorPos] !== " ") seen++;
+      newCursorPos++;
+    }
+    for (
+      let s = 0;
+      s < trailingSpaces && newCursorPos < formatted.length && formatted[newCursorPos] === " ";
+      s++
+    ) {
+      newCursorPos++;
+    }
+  }
+
+  return { formatted, newCursorPos };
+}
+
+/**
  * Evaluates an arithmetic expression containing numbers and operators (+, -, *, /).
  * Normalizes thousands separators and commas.
  *
@@ -330,7 +440,7 @@ export function evaluateMathExpression(expr) {
     .replace(/,/g, ".");
 
   // 2. Normalize spaces within numbers: '1 500' -> '1500'
-  clean = clean.replace(/(\d)\s+(\d{3})(?!\d)/g, "$1$2");
+  clean = normalizeNumberSpaces(clean);
 
   // 3. Match arithmetic tokens
   const tokens = clean.match(/(\d+(?:\.\d+)?|[+\-*/])/g);
@@ -413,8 +523,9 @@ export function evaluateMathExpression(expr) {
  */
 export function getCategorySuggestions(prefix, categories = []) {
   if (!categories?.length) return [];
+  const sorted = sortCategoriesByPopularity(categories);
   if (!prefix?.trim()) {
-    return categories.map((c) => ({
+    return sorted.map((c) => ({
       ...c,
       matchedAlias: null,
     }));
@@ -426,7 +537,7 @@ export function getCategorySuggestions(prefix, categories = []) {
   const aliasMatch = [];
   const includesName = [];
 
-  for (const cat of categories) {
+  for (const cat of sorted) {
     const name = cat.name.toLowerCase();
     const catWords = name.split(/\s+/).filter((w) => w.length >= 2 && w !== "и");
     const aliases = (CATEGORY_ALIASES[cat.name] || []).map((a) => a.toLowerCase());
@@ -581,7 +692,7 @@ export const BANK_KEYWORDS_REGEX = new RegExp(`(?:^|\\s)(?:${BANK_KEYWORDS_SOURC
 export const BANK_KEYWORD_HIGHLIGHT_REGEX = new RegExp(`^(?:${BANK_KEYWORDS_SOURCE})$`, "i");
 
 export const BANK_KEYWORD_SPLIT_REGEX = new RegExp(
-  `((?<![а-яa-z0-9ё])(?:${BANK_KEYWORDS_SOURCE})(?![а-яa-z0-9ё])|\\d+(?:[.,]\\d+)?|[+\\-*/]|\\s+|[^\\s\\d+\\-*/]+)`,
+  `((?<![а-яa-z0-9ё])(?:${BANK_KEYWORDS_SOURCE})(?![а-яa-z0-9ё])|\\d+(?:\\s\\d{3,})*(?:[.,]\\d+)?|[+\\-*/]|\\s+|[^\\s\\d+\\-*/]+)`,
   "gi",
 );
 
@@ -787,7 +898,7 @@ export function parseSmartInput({ input = "", categories = [], banks = [], type 
   }
 
   // Pre-normalize currency symbols and spaces within numbers (e.g. 1 000 -> 1000)
-  let text = trimmed.replace(/\b(\d{1,3})\s+(\d{3})(?!\d)/g, "$1$2");
+  let text = normalizeNumberSpaces(trimmed);
   text = text.replace(/(\d+(?:[.,]\d+)?)\s*(?:₽|руб(?:л[ейя])?|р(?=\s|$)|rur|rub)/gi, "$1 ");
 
   // 1. Extract bank amount expressions if present (prefix or postfix synonyms)

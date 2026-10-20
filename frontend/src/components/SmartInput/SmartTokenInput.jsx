@@ -7,13 +7,17 @@ import {
   evaluateMathExpression,
   formatDateShort,
   formatNumber,
+  formatNumbersInText,
+  formatTextWithCursor,
   getBankSuggestions,
   getCategoryIcon,
   getCategorySuggestions,
   getLocalDateString,
   matchBank,
   matchCategory,
+  normalizeNumberSpaces,
   parseSmartInput,
+  sortCategoriesByPopularity,
   splitBankAmount,
 } from "../../utils";
 
@@ -36,7 +40,7 @@ function renderHighlightedText(text, operationType) {
         </span>
       );
     }
-    if (/^\d+(?:[.,]\d+)?$/.test(part)) {
+    if (/^\d+(?:\s\d{3,})*(?:[.,]\d+)?$/.test(part)) {
       return (
         <span key={key} className="o-smart-token-num" data-type={operationType}>
           {part}
@@ -93,9 +97,9 @@ export function SmartTokenInput({
   const dateMenuRef = useRef(null);
   const manualDateInputRef = useRef(null);
 
-  // Filter categories by current operationType
+  // Filter categories by current operationType and sort by popularity
   const currentCategories = useMemo(
-    () => categories.filter((c) => c.type === operationType),
+    () => sortCategoriesByPopularity(categories.filter((c) => c.type === operationType)),
     [categories, operationType],
   );
 
@@ -192,18 +196,22 @@ export function SmartTokenInput({
 
     if (bankIndices.length > 0) {
       const lastBankIdx = Math.max(...bankIndices);
-      const textBeforeBanks = tokens
-        .slice(0, lastBankIdx)
-        .filter((t) => t.type === "text")
-        .map((t) => t.value)
-        .join(" ")
-        .trim();
-      const textAfterBanks = tokens
-        .slice(lastBankIdx + 1)
-        .filter((t) => t.type === "text")
-        .map((t) => t.value)
-        .join(" ")
-        .trim();
+      const textBeforeBanks = normalizeNumberSpaces(
+        tokens
+          .slice(0, lastBankIdx)
+          .filter((t) => t.type === "text")
+          .map((t) => t.value)
+          .join(" ")
+          .trim(),
+      );
+      const textAfterBanks = normalizeNumberSpaces(
+        tokens
+          .slice(lastBankIdx + 1)
+          .filter((t) => t.type === "text")
+          .map((t) => t.value)
+          .join(" ")
+          .trim(),
+      );
 
       const numberPattern =
         /(?:^|\s)(\d+(?:[.,]\d+)?(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*)(?:\s*(?:₽|руб(?:л[ейя])?|р|rur|rub))?(?:\s|$)/i;
@@ -489,18 +497,27 @@ export function SmartTokenInput({
 
   // Handle input text changes
   const handleTokenChange = (tokenId, e) => {
-    const val = e.target.value;
-    const cursorPos = e.target.selectionStart || val.length;
+    const rawVal = e.target.value;
+    const rawCursorPos = e.target.selectionStart ?? rawVal.length;
+
+    const { formatted: val, newCursorPos: cursorPos } = formatTextWithCursor(rawVal, rawCursorPos);
 
     // Update token text
     setTokens((prev) => prev.map((t) => (t.id === tokenId ? { ...t, value: val } : t)));
 
     setActiveTokenId(tokenId);
 
-    // Sync highlight scroll
-    if (highlightRefs.current[tokenId]) {
-      highlightRefs.current[tokenId].scrollLeft = e.target.scrollLeft;
-    }
+    // Sync input selection and highlight scroll
+    const scrollLeft = e.target.scrollLeft;
+    requestAnimationFrame(() => {
+      const inputEl = inputRefs.current[tokenId];
+      if (inputEl && document.activeElement === inputEl) {
+        inputEl.setSelectionRange(cursorPos, cursorPos);
+      }
+      if (highlightRefs.current[tokenId]) {
+        highlightRefs.current[tokenId].scrollLeft = scrollLeft;
+      }
+    });
 
     // Determine current word under cursor
     const beforeCursor = val.slice(0, cursorPos);
@@ -653,16 +670,43 @@ export function SmartTokenInput({
       }
     }
 
-    // 4. Backspace: remove preceding badge if text input is empty at cursor 0
+    // 4. Backspace: handle spaces between digits and removing preceding badges
     if (e.key === "Backspace") {
       const inputEl = inputRefs.current[tokenId];
-      if (inputEl && inputEl.selectionStart === 0 && inputEl.selectionEnd === 0) {
-        if (tokenIndex > 0) {
-          const prevToken = tokens[tokenIndex - 1];
-          if (prevToken && (prevToken.type === "category" || prevToken.type === "bank")) {
+      if (inputEl) {
+        const selStart = inputEl.selectionStart;
+        const selEnd = inputEl.selectionEnd;
+        if (selStart === selEnd && selStart > 0) {
+          const v = inputEl.value;
+          // If cursor is right after a thousands-separator space between digits
+          if (
+            v[selStart - 1] === " " &&
+            /\d/.test(v[selStart - 2] || "") &&
+            /\d/.test(v[selStart] || "")
+          ) {
             e.preventDefault();
-            removeBadgeToken(prevToken.id);
+            const newVal = v.slice(0, selStart - 2) + v.slice(selStart - 1);
+            const { formatted, newCursorPos } = formatTextWithCursor(newVal, selStart - 2);
+            setTokens((prev) =>
+              prev.map((t) => (t.id === tokenId ? { ...t, value: formatted } : t)),
+            );
+            requestAnimationFrame(() => {
+              const el = inputRefs.current[tokenId];
+              if (el && document.activeElement === el) {
+                el.setSelectionRange(newCursorPos, newCursorPos);
+              }
+            });
             return;
+          }
+        }
+        if (selStart === 0 && selEnd === 0) {
+          if (tokenIndex > 0) {
+            const prevToken = tokens[tokenIndex - 1];
+            if (prevToken && (prevToken.type === "category" || prevToken.type === "bank")) {
+              e.preventDefault();
+              removeBadgeToken(prevToken.id);
+              return;
+            }
           }
         }
       }
@@ -728,10 +772,11 @@ export function SmartTokenInput({
       e.preventDefault();
 
       const newTokens = [];
-      const mathStr = parsed.mathBreakdown || (parsed.amount ? String(parsed.amount) : "");
+      const mathStr =
+        parsed.mathBreakdown || (parsed.amount ? formatNumbersInText(String(parsed.amount)) : "");
       let initialText = mathStr ? `${mathStr} ` : "";
       if (parsed.bank_amount && parsed.bank_amount !== parsed.amount) {
-        initialText += `из них ${parsed.bank_amount} `;
+        initialText += `из них ${formatNumbersInText(String(parsed.bank_amount))} `;
       }
       if (initialText) {
         newTokens.push({
@@ -806,7 +851,7 @@ export function SmartTokenInput({
         })
         .join(" ");
 
-      mathStr = `Сумма: ${termsStr} = ${formatNumber(total)} ₽`;
+      mathStr = `${termsStr} = ${formatNumber(total)} ₽`;
     }
 
     let bankStr = null;
@@ -844,19 +889,20 @@ export function SmartTokenInput({
       return mathStr;
     }
     if (bankStr) {
-      return `Сумма: ${formatNumber(total)} ₽ • ${bankStr}`;
+      return `${formatNumber(total)} ₽ • ${bankStr}`;
     }
 
     return null;
   }, [mathData, operationType, bankTokens, bankAmountValue]);
 
   return (
-    <div className="o-smart-entry-box">
+    <div className="m-card o-smart-entry-box" data-context="overlay" data-size="s">
       <div className="o-smart-entry-row">
         {/* Token Container */}
         <div
           ref={containerRef}
           className="o-smart-token-container"
+          data-context="overlay"
           onClick={(e) => {
             if (e.target === containerRef.current) {
               const lastText = [...tokens].reverse().find((t) => t.type === "text");
@@ -879,7 +925,7 @@ export function SmartTokenInput({
                 <span
                   key={token.id}
                   className="m-category-chip o-smart-token-chip"
-                  data-context="overlay"
+                  data-context="normal"
                   data-size="s"
                 >
                   <i className={getCategoryIcon(token.category.name)} />
@@ -905,7 +951,7 @@ export function SmartTokenInput({
                 <span
                   key={token.id}
                   className="m-category-chip o-smart-token-chip"
-                  data-context="overlay"
+                  data-context="normal"
                   data-size="s"
                 >
                   <i className="ri-bank-card-line" />
@@ -1036,29 +1082,14 @@ export function SmartTokenInput({
         <div ref={dateMenuRef} className="o-smart-date-dropdown-container">
           <button
             type="button"
-            className="m-input a-flex a-items-center a-gap-8"
+            className="m-input o-smart-date-btn a-flex a-items-center a-gap-8"
             data-size="m"
+            data-context="overlay"
             data-active={date !== getLocalDateString()}
             onClick={() => setOpenDateMenu((prev) => !prev)}
             title="Дата операции (сохраняется для последующих записей)"
-            style={{
-              height: "2.75rem",
-              whiteSpace: "nowrap",
-              cursor: "pointer",
-              userSelect: "none",
-              padding: "0 var(--spc-12)",
-            }}
           >
-            <span
-              style={{
-                fontWeight:
-                  date !== getLocalDateString()
-                    ? "var(--font-weight-medium)"
-                    : "var(--font-weight-regular)",
-              }}
-            >
-              {getDateChipLabel(date)}
-            </span>
+            <span>{getDateChipLabel(date)}</span>
             <i className="ri-arrow-down-s-line a-clr-text-secondary" />
           </button>
 

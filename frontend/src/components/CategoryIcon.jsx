@@ -1,8 +1,15 @@
-export function CategoryIcon({ icon, name, className = "", children }) {
+export function CategoryIcon({ icon, name, className = "", tooltipPlacement, children }) {
   return (
-    <div className={`o-category-row-icon ${className}`}>
+    <div
+      className={`o-category-row-icon ${className}`.trim()}
+      data-tooltip-placement={tooltipPlacement || undefined}
+    >
       {icon ? <i className={icon}></i> : children}
-      {name && <div className="o-category-row-tooltip">{name}</div>}
+      {name && (
+        <div className="o-category-row-tooltip" data-placement={tooltipPlacement || undefined}>
+          {name}
+        </div>
+      )}
     </div>
   );
 }
