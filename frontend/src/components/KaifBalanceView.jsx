@@ -23,11 +23,64 @@ export const KaifBalanceView = () => {
 
   const addBankMutation = useMutation({
     mutationFn: api.addBank,
-    onSuccess: (result, variables) => {
+    onMutate: async (newBank) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ["banks"] }),
+        queryClient.cancelQueries({ queryKey: ["dashboard"] }),
+      ]);
+      const previousBanks = queryClient.getQueryData(["banks"]);
+      const previousDashboard = queryClient.getQueriesData({ queryKey: ["dashboard"] });
+
+      const optimisticBank = {
+        id: `temp-${Date.now()}`,
+        name: newBank.name,
+        month_limit: Number(newBank.month_limit || 0),
+        spent_this_month: 0,
+        current_balance: Number(newBank.month_limit || 0),
+        spent_percentage: 0,
+      };
+
+      queryClient.setQueryData(["banks"], (old = []) => [...old, optimisticBank]);
+
+      queryClient.setQueriesData({ queryKey: ["dashboard"] }, (old) => {
+        if (!old || !Array.isArray(old.banks)) return old;
+        return {
+          ...old,
+          banks: [...old.banks, optimisticBank],
+        };
+      });
+
+      return { previousBanks, previousDashboard, tempId: optimisticBank.id };
+    },
+    onSuccess: (result, variables, context) => {
       googleSheetsSync.enqueueAction({
         type: "ADD_BANK",
         data: result || variables,
       });
+      if (result?.id && context?.tempId) {
+        queryClient.setQueryData(["banks"], (old = []) =>
+          old.map((b) => (b.id === context.tempId ? { ...b, ...result } : b)),
+        );
+        queryClient.setQueriesData({ queryKey: ["dashboard"] }, (old) => {
+          if (!old || !Array.isArray(old.banks)) return old;
+          return {
+            ...old,
+            banks: old.banks.map((b) => (b.id === context.tempId ? { ...b, ...result } : b)),
+          };
+        });
+      }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousBanks) {
+        queryClient.setQueryData(["banks"], context.previousBanks);
+      }
+      if (Array.isArray(context?.previousDashboard)) {
+        for (const [key, data] of context.previousDashboard) {
+          queryClient.setQueryData(key, data);
+        }
+      }
+    },
+    onSettled: () => {
       invalidateTransactionCaches(queryClient);
     },
   });

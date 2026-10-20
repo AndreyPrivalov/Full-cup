@@ -256,15 +256,13 @@ router.put(
       }
     }
 
-    const [existingTx] = await db.select().from(transactions).where(eq(transactions.id, txId));
+    const [[existingTx], existingBanks] = await Promise.all([
+      db.select().from(transactions).where(eq(transactions.id, txId)),
+      db.select().from(transactionBanks).where(eq(transactionBanks.transaction_id, txId)),
+    ]);
     if (!existingTx) {
       return res.status(404).json({ error: "Транзакция не найдена" });
     }
-
-    const existingBanks = await db
-      .select()
-      .from(transactionBanks)
-      .where(eq(transactionBanks.transaction_id, txId));
 
     let bankIdsChanged = false;
     let newBankIds = existingBanks.map((b) => b.bank_id);

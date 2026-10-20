@@ -36,7 +36,7 @@ export function RecentOperations({ operations = [], newlyAddedIds = null }) {
           key={op.id || i}
           operation={op}
           showBadges={true}
-          isNew={Boolean(newlyAddedIds?.has(op.id))}
+          isNew={Boolean(newlyAddedIds?.has(op.id) || String(op.id).startsWith("temp-"))}
           categories={categories}
           onUpdate={(field, val) => handleUpdate(op.id, field, val)}
         />

@@ -12,6 +12,11 @@ import { api } from "../api";
 import { invalidateTransactionCaches } from "../hooks/invalidateQueries";
 import { formatNumber } from "../utils";
 import { googleSheetsSync } from "../utils/googleSheetsSync";
+import {
+  applyOptimisticDelete,
+  applyOptimisticTransaction,
+  applyOptimisticUpdate,
+} from "../utils/optimisticUpdates";
 
 export const OperationsHistoryContext = createContext(null);
 
@@ -55,13 +60,6 @@ function saveStoredHistory(undoStack, redoStack) {
   } catch (err) {
     console.warn("Не удалось сохранить историю операций в localStorage:", err);
   }
-}
-
-function updateAllOperationsCaches(queryClient, updater) {
-  queryClient.setQueryData(["operations"], (old = []) => (Array.isArray(old) ? updater(old) : old));
-  queryClient.setQueriesData({ queryKey: ["recent-operations"] }, (old = []) =>
-    Array.isArray(old) ? updater(old) : old,
-  );
 }
 
 export function OperationsHistoryProvider({ children }) {
@@ -129,8 +127,9 @@ export function OperationsHistoryProvider({ children }) {
         commitPendingDeletion();
       }
 
-      const itemIds = new Set(items.map((i) => i.id));
-      updateAllOperationsCaches(queryClient, (old) => old.filter((op) => !itemIds.has(op.id)));
+      for (const it of items) {
+        applyOptimisticDelete(queryClient, it);
+      }
 
       const commit = async () => {
         try {
@@ -149,11 +148,9 @@ export function OperationsHistoryProvider({ children }) {
           }
         } catch (err) {
           console.error("Ошибка при удалении операции:", err);
-          updateAllOperationsCaches(queryClient, (old) => {
-            const existingIds = new Set(old.map((o) => o.id));
-            const toAdd = items.filter((it) => !existingIds.has(it.id));
-            return [...toAdd, ...old];
-          });
+          for (const it of items) {
+            applyOptimisticTransaction(queryClient, it);
+          }
           showToast("Ошибка при удалении");
         } finally {
           invalidateTransactionCaches(queryClient);
@@ -165,11 +162,9 @@ export function OperationsHistoryProvider({ children }) {
           clearTimeout(toastTimeoutRef.current);
         }
         pendingDeletionRef.current = null;
-        updateAllOperationsCaches(queryClient, (old) => {
-          const existingIds = new Set(old.map((o) => o.id));
-          const toAdd = items.filter((it) => !existingIds.has(it.id));
-          return [...toAdd, ...old];
-        });
+        for (const it of items) {
+          applyOptimisticTransaction(queryClient, it);
+        }
         setToast({ visible: false, message: "", action: null });
         setStackVersion((v) => v + 1);
       };
@@ -263,32 +258,36 @@ export function OperationsHistoryProvider({ children }) {
 
     // Optimistic cache update (synchronous for instant feedback across all views)
     if (action.type === "ADD") {
-      const itemIds = new Set(action.items.map((it) => it.id));
-      updateAllOperationsCaches(queryClient, (old) => old.filter((op) => !itemIds.has(op.id)));
+      for (const it of action.items) {
+        applyOptimisticDelete(queryClient, it);
+      }
       const catStr = action.summary?.categoryName ? ` (${action.summary.categoryName})` : "";
       showToast(`Отменено: добавление ${formatNumber(action.summary?.amount || 0)} ₽${catStr}`);
     } else if (action.type === "DELETE") {
-      updateAllOperationsCaches(queryClient, (old) => [action.item, ...old]);
+      applyOptimisticTransaction(queryClient, action.item);
       const catStr = action.item.category_name ? ` (${action.item.category_name})` : "";
       showToast(`Отменено: удаление ${formatNumber(action.item.amount || 0)} ₽${catStr}`);
     } else if (action.type === "UPDATE") {
       const categories = queryClient.getQueryData(["categories"]) || [];
       const banks = queryClient.getQueryData(["banks"]) || [];
-      updateAllOperationsCaches(queryClient, (old) =>
-        old.map((op) => {
-          if (op.id !== action.id) return op;
-          const updated = { ...op, ...action.previous };
-          if (action.previous.category_id !== undefined) {
-            const cat = categories.find((c) => c.id === action.previous.category_id);
-            updated.category_name = cat ? cat.name : "";
-          }
-          if (action.previous.bank_id !== undefined) {
-            const b = banks.find((item) => item.id === action.previous.bank_id);
-            updated.bank_name = b ? b.name : "";
-          }
-          return updated;
-        }),
-      );
+      const currentOp =
+        queryClient.getQueryData(["operations"])?.find((op) => op.id === action.id) ||
+        queryClient
+          .getQueryData(["recent-operations", "expense"])
+          ?.find((op) => op.id === action.id) ||
+        queryClient
+          .getQueryData(["recent-operations", "income"])
+          ?.find((op) => op.id === action.id);
+      const updated = { ...(currentOp || {}), ...action.previous };
+      if (action.previous.category_id !== undefined) {
+        const cat = categories.find((c) => c.id === action.previous.category_id);
+        updated.category_name = cat ? cat.name : "";
+      }
+      if (action.previous.bank_id !== undefined) {
+        const b = banks.find((item) => item.id === action.previous.bank_id);
+        updated.bank_name = b ? b.name : "";
+      }
+      applyOptimisticUpdate(queryClient, action.id, updated, currentOp);
       showToast(`Отменено: изменение ${action.summary?.fieldName || "операции"}`);
     }
 
@@ -376,31 +375,36 @@ export function OperationsHistoryProvider({ children }) {
 
     // Optimistic cache update (synchronous for instant feedback across all views)
     if (action.type === "ADD") {
-      updateAllOperationsCaches(queryClient, (old) => [...action.items, ...old]);
+      for (const it of action.items) {
+        applyOptimisticTransaction(queryClient, it);
+      }
       const catStr = action.summary?.categoryName ? ` (${action.summary.categoryName})` : "";
       showToast(`Повторено: добавление ${formatNumber(action.summary?.amount || 0)} ₽${catStr}`);
     } else if (action.type === "DELETE") {
-      updateAllOperationsCaches(queryClient, (old) => old.filter((op) => op.id !== action.item.id));
+      applyOptimisticDelete(queryClient, action.item);
       const catStr = action.item.category_name ? ` (${action.item.category_name})` : "";
       showToast(`Повторено: удаление ${formatNumber(action.item.amount || 0)} ₽${catStr}`);
     } else if (action.type === "UPDATE") {
       const categories = queryClient.getQueryData(["categories"]) || [];
       const banks = queryClient.getQueryData(["banks"]) || [];
-      updateAllOperationsCaches(queryClient, (old) =>
-        old.map((op) => {
-          if (op.id !== action.id) return op;
-          const updated = { ...op, ...action.next };
-          if (action.next.category_id !== undefined) {
-            const cat = categories.find((c) => c.id === action.next.category_id);
-            updated.category_name = cat ? cat.name : "";
-          }
-          if (action.next.bank_id !== undefined) {
-            const b = banks.find((item) => item.id === action.next.bank_id);
-            updated.bank_name = b ? b.name : "";
-          }
-          return updated;
-        }),
-      );
+      const currentOp =
+        queryClient.getQueryData(["operations"])?.find((op) => op.id === action.id) ||
+        queryClient
+          .getQueryData(["recent-operations", "expense"])
+          ?.find((op) => op.id === action.id) ||
+        queryClient
+          .getQueryData(["recent-operations", "income"])
+          ?.find((op) => op.id === action.id);
+      const updated = { ...(currentOp || {}), ...action.next };
+      if (action.next.category_id !== undefined) {
+        const cat = categories.find((c) => c.id === action.next.category_id);
+        updated.category_name = cat ? cat.name : "";
+      }
+      if (action.next.bank_id !== undefined) {
+        const b = banks.find((item) => item.id === action.next.bank_id);
+        updated.bank_name = b ? b.name : "";
+      }
+      applyOptimisticUpdate(queryClient, action.id, updated, currentOp);
       showToast(`Повторено: изменение ${action.summary?.fieldName || "операции"}`);
     }
 

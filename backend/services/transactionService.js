@@ -30,11 +30,14 @@ export function normalizeBankIds(body) {
  */
 export async function getTransactionBanksForIds(txIds, executor = db) {
   if (!txIds || txIds.length === 0) return [];
-  const results = [];
   const chunkSize = 500;
+  const chunks = [];
   for (let i = 0; i < txIds.length; i += chunkSize) {
-    const chunk = txIds.slice(i, i + chunkSize);
-    const rows = await executor
+    chunks.push(txIds.slice(i, i + chunkSize));
+  }
+
+  const chunkPromises = chunks.map((chunk) =>
+    executor
       .select({
         transaction_id: transactionBanks.transaction_id,
         bank_id: transactionBanks.bank_id,
@@ -43,10 +46,11 @@ export async function getTransactionBanksForIds(txIds, executor = db) {
       })
       .from(transactionBanks)
       .innerJoin(banks, eq(transactionBanks.bank_id, banks.id))
-      .where(inArray(transactionBanks.transaction_id, chunk));
-    results.push(...rows);
-  }
-  return results;
+      .where(inArray(transactionBanks.transaction_id, chunk)),
+  );
+
+  const chunkResults = await Promise.all(chunkPromises);
+  return chunkResults.flat();
 }
 
 /**
@@ -160,12 +164,11 @@ export async function syncTransactionBanks(tx, transactionId, bankIds, bankAmoun
 
   if (bankIds.length > 0 && bankAmount && bankAmount > 0) {
     const shares = splitBankAmount(bankAmount, bankIds.length);
-    for (let i = 0; i < bankIds.length; i++) {
-      await tx.insert(transactionBanks).values({
-        transaction_id: transactionId,
-        bank_id: bankIds[i],
-        amount: shares[i],
-      });
-    }
+    const records = bankIds.map((bankId, i) => ({
+      transaction_id: transactionId,
+      bank_id: bankId,
+      amount: shares[i],
+    }));
+    await tx.insert(transactionBanks).values(records);
   }
 }

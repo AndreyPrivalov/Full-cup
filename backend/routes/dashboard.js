@@ -1,10 +1,11 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import express from "express";
 import {
   banks,
   categories,
   getCurrentMonthRange,
   getPreviousMonthRange,
+  transactionBanks,
   transactions,
 } from "shared";
 import { db } from "../db/index.js";
@@ -120,22 +121,32 @@ router.get(
     };
 
     const getBanksData = async () => {
+      const spentSubquery = db
+        .select({
+          bank_id: transactionBanks.bank_id,
+          total_spent: sql`SUM(${transactionBanks.amount})`.mapWith(Number).as("total_spent"),
+        })
+        .from(transactionBanks)
+        .innerJoin(transactions, eq(transactions.id, transactionBanks.transaction_id))
+        .where(
+          and(
+            eq(transactions.type, "expense"),
+            gte(transactions.date, currentMonthStart),
+            lte(transactions.date, currentMonthEnd),
+          ),
+        )
+        .groupBy(transactionBanks.bank_id)
+        .as("spent_sub");
+
       return await db
         .select({
           id: banks.id,
           name: banks.name,
           month_limit: banks.month_limit,
-          spent_this_month: sql`COALESCE((
-            SELECT SUM(tb.amount)
-            FROM transaction_banks tb
-            JOIN transactions t ON t.id = tb.transaction_id
-            WHERE tb.bank_id = banks.id
-              AND t.type = 'expense'
-              AND t.date >= ${currentMonthStart}
-              AND t.date <= ${currentMonthEnd}
-          ), 0)`.mapWith(Number),
+          spent_this_month: sql`COALESCE(${spentSubquery.total_spent}, 0)`.mapWith(Number),
         })
         .from(banks)
+        .leftJoin(spentSubquery, eq(banks.id, spentSubquery.bank_id))
         .orderBy(banks.id);
     };
 

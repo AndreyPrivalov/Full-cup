@@ -2,6 +2,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { useOperationsHistory } from "../context/OperationsHistoryContext";
 import { googleSheetsSync } from "../utils/googleSheetsSync";
+import {
+  applyOptimisticTransaction,
+  captureOperationCacheSnapshot,
+  replaceOptimisticTransaction,
+  restoreOperationCacheSnapshot,
+} from "../utils/optimisticUpdates";
 import { invalidateTransactionCaches } from "./invalidateQueries";
 
 export function useAddOperation() {
@@ -11,8 +17,13 @@ export function useAddOperation() {
   return useMutation({
     mutationFn: (data) => api.addOperation(data),
     onMutate: async (newData) => {
-      await queryClient.cancelQueries({ queryKey: ["operations"] });
-      const previousOperations = queryClient.getQueryData(["operations"]);
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ["operations"] }),
+        queryClient.cancelQueries({ queryKey: ["recent-operations"] }),
+        queryClient.cancelQueries({ queryKey: ["dashboard"] }),
+        queryClient.cancelQueries({ queryKey: ["banks"] }),
+      ]);
+      const snapshot = captureOperationCacheSnapshot(queryClient);
 
       const categories = queryClient.getQueryData(["categories"]) || [];
       const banks = queryClient.getQueryData(["banks"]) || [];
@@ -50,11 +61,11 @@ export function useAddOperation() {
         category_type: newData.type,
       };
 
-      queryClient.setQueryData(["operations"], (old = []) => [optimisticOp, ...old]);
+      applyOptimisticTransaction(queryClient, optimisticOp);
 
-      return { previousOperations };
+      return { snapshot, optimisticOp };
     },
-    onSuccess: (result, variables) => {
+    onSuccess: (result, variables, context) => {
       const categories = queryClient.getQueryData(["categories"]) || [];
       const cat = categories.find((c) => c.id === variables.category_id);
       const itemsWithMeta = result?.id ? [result] : [];
@@ -70,10 +81,8 @@ export function useAddOperation() {
         });
       }
 
-      if (result?.id) {
-        queryClient.setQueryData(["operations"], (old = []) => {
-          return old.map((op) => (String(op.id).startsWith("temp-") ? result : op));
-        });
+      if (result?.id && context?.optimisticOp?.id) {
+        replaceOptimisticTransaction(queryClient, context.optimisticOp.id, result);
 
         googleSheetsSync.enqueueAction({
           type: "ADD_TRANSACTION",
@@ -93,8 +102,8 @@ export function useAddOperation() {
       }
     },
     onError: (_err, _newData, context) => {
-      if (context?.previousOperations) {
-        queryClient.setQueryData(["operations"], context.previousOperations);
+      if (context?.snapshot) {
+        restoreOperationCacheSnapshot(queryClient, context.snapshot);
       }
     },
     onSettled: () => {

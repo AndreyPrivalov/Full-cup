@@ -3,6 +3,11 @@ import { api } from "../api";
 import { useOperationsHistory } from "../context/OperationsHistoryContext";
 import { splitBankAmount } from "../utils";
 import { googleSheetsSync } from "../utils/googleSheetsSync";
+import {
+  applyOptimisticUpdate,
+  captureOperationCacheSnapshot,
+  restoreOperationCacheSnapshot,
+} from "../utils/optimisticUpdates";
 import { invalidateTransactionCaches } from "./invalidateQueries";
 
 const FIELD_MAP = {
@@ -22,7 +27,14 @@ export const useUpdateOperation = () => {
   return useMutation({
     mutationFn: ({ id, data }) => api.updateOperation(id, data),
     onMutate: async ({ id, data }) => {
-      await queryClient.cancelQueries({ queryKey: ["operations"] });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ["operations"] }),
+        queryClient.cancelQueries({ queryKey: ["recent-operations"] }),
+        queryClient.cancelQueries({ queryKey: ["dashboard"] }),
+        queryClient.cancelQueries({ queryKey: ["banks"] }),
+      ]);
+      const snapshot = captureOperationCacheSnapshot(queryClient);
+
       const previousOperations = queryClient.getQueryData(["operations"]);
       const currentOp =
         previousOperations?.find((op) => op.id === id) ||
@@ -32,63 +44,69 @@ export const useUpdateOperation = () => {
       const categories = queryClient.getQueryData(["categories"]) || [];
       const banks = queryClient.getQueryData(["banks"]) || [];
 
-      queryClient.setQueryData(["operations"], (old = []) =>
-        old.map((op) => {
-          if (op.id !== id) return op;
-          const updated = { ...op, ...data };
-          if (data.amount !== undefined) {
-            const newAmt = Number(data.amount);
-            if (op.bank_amount === op.amount) {
-              updated.bank_amount = newAmt;
-            }
-            updated.amount = newAmt;
+      const computeUpdatedOp = (op) => {
+        const updated = { ...op, ...data };
+        if (data.amount !== undefined) {
+          const newAmt = Number(data.amount);
+          if (op.bank_amount === op.amount) {
+            updated.bank_amount = newAmt;
           }
-          if (data.category_id !== undefined) {
-            updated.category_name =
-              categories.find((c) => c.id === data.category_id)?.name || op.category_name;
+          updated.amount = newAmt;
+        }
+        if (data.category_id !== undefined) {
+          updated.category_name =
+            categories.find((c) => c.id === data.category_id)?.name || op.category_name;
+        }
+        if (data.bank_ids !== undefined) {
+          const bIds = Array.isArray(data.bank_ids) ? data.bank_ids : [];
+          const names = bIds.map((bId) => banks.find((b) => b.id === bId)?.name).filter(Boolean);
+          updated.bank_ids = bIds;
+          updated.bank_names = names;
+          updated.bank_name = names.join(", ");
+          updated.bank_id = bIds[0] || null;
+          if (bIds.length === 0) {
+            updated.bank_amount = null;
+          } else if (updated.bank_amount === null || updated.bank_amount === undefined) {
+            updated.bank_amount = updated.amount;
           }
-          if (data.bank_ids !== undefined) {
-            const bIds = Array.isArray(data.bank_ids) ? data.bank_ids : [];
-            const names = bIds.map((bId) => banks.find((b) => b.id === bId)?.name).filter(Boolean);
-            updated.bank_ids = bIds;
-            updated.bank_names = names;
-            updated.bank_name = names.join(", ");
-            updated.bank_id = bIds[0] || null;
-            if (bIds.length === 0) {
-              updated.bank_amount = null;
-            } else if (updated.bank_amount === null || updated.bank_amount === undefined) {
-              updated.bank_amount = updated.amount;
-            }
-          } else if (data.bank_id !== undefined) {
-            const bId = data.bank_id;
-            const b = banks.find((item) => item.id === bId);
-            updated.bank_id = bId || null;
-            updated.bank_ids = bId ? [bId] : [];
-            updated.bank_names = b ? [b.name] : [];
-            updated.bank_name = b ? b.name : "";
-            if (!bId) {
-              updated.bank_amount = null;
-            }
+        } else if (data.bank_id !== undefined) {
+          const bId = data.bank_id;
+          const b = banks.find((item) => item.id === bId);
+          updated.bank_id = bId || null;
+          updated.bank_ids = bId ? [bId] : [];
+          updated.bank_names = b ? [b.name] : [];
+          updated.bank_name = b ? b.name : "";
+          if (!bId) {
+            updated.bank_amount = null;
           }
-          if (data.bank_amount !== undefined) {
-            updated.bank_amount = data.bank_amount !== null ? Number(data.bank_amount) : null;
-          }
+        }
+        if (data.bank_amount !== undefined) {
+          updated.bank_amount = data.bank_amount !== null ? Number(data.bank_amount) : null;
+        }
 
-          const finalBankIds = updated.bank_ids || [];
-          const effectiveBankAmount = updated.bank_amount ?? updated.amount;
-          if (finalBankIds.length > 0 && effectiveBankAmount) {
-            const splits = splitBankAmount(effectiveBankAmount, finalBankIds.length);
-            updated.banks = finalBankIds.map((bId, idx) => ({
-              id: bId,
-              name: banks.find((b) => b.id === bId)?.name || "",
-              amount: splits[idx] || 0,
-            }));
-          } else {
-            updated.banks = [];
-          }
-          return updated;
-        }),
-      );
+        const finalBankIds = updated.bank_ids || [];
+        const effectiveBankAmount = updated.bank_amount ?? updated.amount;
+        if (finalBankIds.length > 0 && effectiveBankAmount) {
+          const splits = splitBankAmount(effectiveBankAmount, finalBankIds.length);
+          updated.banks = finalBankIds.map((bId, idx) => ({
+            id: bId,
+            name: banks.find((b) => b.id === bId)?.name || "",
+            amount: splits[idx] || 0,
+          }));
+        } else {
+          updated.banks = [];
+        }
+        return updated;
+      };
+
+      if (currentOp) {
+        const updatedOp = computeUpdatedOp(currentOp);
+        applyOptimisticUpdate(queryClient, id, updatedOp, currentOp);
+      } else {
+        queryClient.setQueryData(["operations"], (old = []) =>
+          old.map((op) => (op.id === id ? computeUpdatedOp(op) : op)),
+        );
+      }
 
       const previous = {};
       const next = {};
@@ -103,7 +121,7 @@ export const useUpdateOperation = () => {
         }
       }
 
-      return { previousOperations, previous, next };
+      return { snapshot, previous, next };
     },
     onSuccess: (_data, { id, data }, context) => {
       googleSheetsSync.enqueueAction({
@@ -131,8 +149,8 @@ export const useUpdateOperation = () => {
       }
     },
     onError: (_err, _variables, context) => {
-      if (context?.previousOperations) {
-        queryClient.setQueryData(["operations"], context.previousOperations);
+      if (context?.snapshot) {
+        restoreOperationCacheSnapshot(queryClient, context.snapshot);
       }
     },
     onSettled: () => {
