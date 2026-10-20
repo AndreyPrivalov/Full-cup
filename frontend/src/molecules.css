@@ -28,7 +28,7 @@
 }
 
 .m-card[data-size="s"] {
-  padding: var(--spc-12);
+  padding: var(--spc-12) var(--spc-24);
   border-radius: var(--radius-l);
 }
 .m-card[data-size="m"] {
