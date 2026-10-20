@@ -15,17 +15,21 @@
   flex-direction: column;
   /* Default: normal context */
   background-color: var(--clr-bg-page);
-  border: 1px solid var(--clr-border-primary);
+  border: none;
 }
 
 .m-card[data-context="overlay"] {
   background-color: var(--clr-bg-surface);
-  border-color: var(--clr-border-secondary);
+}
+
+.m-card[data-context="inverse"] {
+  background-color: var(--clr-bg-accent);
+  color: var(--clr-text-inverse);
 }
 
 .m-card[data-size="s"] {
-  padding: var(--spc-16);
-  border-radius: var(--radius-m);
+  padding: var(--spc-12);
+  border-radius: var(--radius-l);
 }
 .m-card[data-size="m"] {
   padding: var(--spc-24);
@@ -55,9 +59,28 @@
   color: var(--clr-text-secondary);
 }
 
+.m-tab:hover {
+  color: var(--clr-text-primary);
+}
+
 .m-tab[data-active="true"] {
   color: var(--clr-text-primary);
   font-weight: var(--font-weight-regular);
+}
+
+.m-tab[data-context="inverse"],
+[data-context="inverse"] .m-tab {
+  color: var(--clr-base-gray-400);
+}
+
+.m-tab[data-context="inverse"]:hover,
+[data-context="inverse"] .m-tab:hover {
+  color: var(--clr-text-inverse);
+}
+
+.m-tab[data-context="inverse"][data-active="true"],
+[data-context="inverse"] .m-tab[data-active="true"] {
+  color: var(--clr-text-inverse);
 }
 
 .m-tab[data-size="s"] {

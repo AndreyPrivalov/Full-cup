@@ -128,29 +128,9 @@ export function DashboardView({ operationType = "expense" }) {
     <div className="a-flex a-flex-col a-gap-32 a-w-full">
       {/* Smart Operation Entry on Top */}
       <div className="o-smart-entry">
-        <div className="o-smart-entry-header">
-          <div className="a-flex a-gap-8 a-items-center">
-            <span
-              className="m-tab"
-              data-size="s"
-              data-active={type === "expense"}
-              onClick={() => handleTypeChange("expense")}
-            >
-              Расходы
-            </span>
-            <span
-              className="m-tab"
-              data-size="s"
-              data-active={type === "income"}
-              onClick={() => handleTypeChange("income")}
-            >
-              Доходы
-            </span>
-          </div>
-        </div>
-
         <SmartTokenInput
           operationType={type}
+          onOperationTypeChange={handleTypeChange}
           categories={categoriesData}
           banks={banksData}
           onSubmit={handleSubmitOperation}

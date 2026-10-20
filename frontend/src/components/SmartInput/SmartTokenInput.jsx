@@ -67,6 +67,7 @@ function renderHighlightedText(text, operationType) {
 
 export function SmartTokenInput({
   operationType = "expense",
+  onOperationTypeChange,
   categories = [],
   banks = [],
   onSubmit,
@@ -896,7 +897,29 @@ export function SmartTokenInput({
   }, [mathData, operationType, bankTokens, bankAmountValue]);
 
   return (
-    <div className="m-card o-smart-entry-box" data-context="overlay" data-size="s">
+    <div className="m-card o-smart-entry-box" data-context="inverse" data-size="s">
+      {/* Switcher: Expense / Income */}
+      <div className="o-smart-entry-header">
+        <div className="a-flex a-gap-8 a-items-center">
+          <span
+            className="m-tab"
+            data-size="s"
+            data-active={operationType === "expense"}
+            onClick={() => onOperationTypeChange?.("expense")}
+          >
+            Расходы
+          </span>
+          <span
+            className="m-tab"
+            data-size="s"
+            data-active={operationType === "income"}
+            onClick={() => onOperationTypeChange?.("income")}
+          >
+            Доходы
+          </span>
+        </div>
+      </div>
+
       <div className="o-smart-entry-row">
         {/* Token Container */}
         <div
@@ -1182,12 +1205,16 @@ export function SmartTokenInput({
         </div>
       </div>
 
-      {/* Math Breakdown Hint (only shown when multiple terms exist) */}
-      {mathHintLabel && (
-        <div className="o-smart-entry-math-hint">
-          <span>{mathHintLabel}</span>
-        </div>
-      )}
+      {/* Math Breakdown Hint (fixed height for zero layout shift) */}
+      <div
+        className="o-smart-entry-math-hint"
+        style={{
+          visibility: mathHintLabel ? "visible" : "hidden",
+        }}
+        aria-hidden={!mathHintLabel}
+      >
+        <span>{mathHintLabel || "\u00A0"}</span>
+      </div>
     </div>
   );
 }

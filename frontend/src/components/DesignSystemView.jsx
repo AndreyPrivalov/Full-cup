@@ -745,6 +745,16 @@ export function DesignSystemView() {
                   <span className="a-text-h2 a-clr-text-primary a-mb-8">Оверлей</span>
                   <span className="a-text-s a-clr-text-primary">Фон поверхности</span>
                 </div>
+
+                <div
+                  className="m-card"
+                  data-size="m"
+                  data-context="inverse"
+                  style={{ flex: 1, minWidth: "220px" }}
+                >
+                  <span className="a-text-h2 a-clr-text-inverse a-mb-8">Инверсная</span>
+                  <span className="a-text-s a-clr-text-inverse">Фон акцента (черный)</span>
+                </div>
               </div>
 
               {/* Bar Track */}

@@ -696,8 +696,18 @@
   gap: var(--spc-4);
   font-size: var(--font-size-s);
   line-height: var(--line-height-sd);
+  min-height: var(--line-height-sd);
   color: var(--clr-text-secondary);
   padding-left: var(--spc-4);
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-context="inverse"] .o-smart-entry-math-hint,
+.m-card[data-context="inverse"] .o-smart-entry-math-hint {
+  color: var(--clr-base-gray-400);
 }
 
 .o-smart-token-dropdown {
