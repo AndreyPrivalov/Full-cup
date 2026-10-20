@@ -199,7 +199,9 @@ export function applyOptimisticTransaction(queryClient, op) {
 export function replaceOptimisticTransaction(queryClient, tempId, serverOp) {
   const replaceInList = (list) => {
     if (!Array.isArray(list)) return list;
-    return list.map((item) => (item.id === tempId ? serverOp : item));
+    return list.map((item) =>
+      item.id === tempId ? { ...serverOp, _clientKey: item._clientKey || tempId } : item,
+    );
   };
 
   queryClient.setQueryData(["operations"], replaceInList);

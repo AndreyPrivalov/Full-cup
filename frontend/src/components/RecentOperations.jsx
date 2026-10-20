@@ -5,7 +5,7 @@ import { formatDateShort } from "../utils";
 import { OperationRow } from "./OperationRow";
 import { SectionBlock } from "./SectionBlock";
 
-export function RecentOperations({ operations = [], newlyAddedIds = null }) {
+export function RecentOperations({ operations = [] }) {
   const { data: categories = [] } = useCategories();
   const updateMutation = useUpdateOperation();
 
@@ -33,10 +33,10 @@ export function RecentOperations({ operations = [], newlyAddedIds = null }) {
       )}
       {operations.map((op, i) => (
         <OperationRow
-          key={op.id || i}
+          key={op._clientKey || op.id || i}
           operation={op}
           showBadges={true}
-          isNew={Boolean(newlyAddedIds?.has(op.id) || String(op.id).startsWith("temp-"))}
+          isNew={Boolean(String(op.id).startsWith("temp-"))}
           categories={categories}
           onUpdate={(field, val) => handleUpdate(op.id, field, val)}
         />

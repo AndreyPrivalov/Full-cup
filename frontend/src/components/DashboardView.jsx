@@ -21,7 +21,6 @@ export function DashboardView({ operationType = "expense" }) {
 
   const [validationError, setValidationError] = useState("");
   const [apiError, setApiError] = useState("");
-  const [newlyAddedIds, setNewlyAddedIds] = useState(null);
 
   const addOperationMutation = useAddOperation();
 
@@ -102,25 +101,9 @@ export function DashboardView({ operationType = "expense" }) {
           bank_amount: selectedBankAmount,
         },
         {
-          onSuccess: (result) => {
+          onSuccess: () => {
             setValidationError("");
             setApiError("");
-            const ids = result?.ids || (result?.id ? [result.id] : []);
-            if (ids.length > 0) {
-              setNewlyAddedIds((prev) => {
-                const next = new Set(prev || []);
-                for (const id of ids) next.add(id);
-                return next;
-              });
-              setTimeout(() => {
-                setNewlyAddedIds((prev) => {
-                  if (!prev) return null;
-                  const next = new Set(prev);
-                  for (const id of ids) next.delete(id);
-                  return next.size > 0 ? next : null;
-                });
-              }, 1000);
-            }
           },
           onError: (err) => {
             setApiError(err.message || "Ошибка при сохранении операции");
@@ -199,7 +182,7 @@ export function DashboardView({ operationType = "expense" }) {
         </PageColumn>
 
         <PageColumn position="right">
-          <RecentOperations operations={recentOperations} newlyAddedIds={newlyAddedIds} />
+          <RecentOperations operations={recentOperations} />
           <BudgetsList
             type="bank"
             title="Кайф-баланс"

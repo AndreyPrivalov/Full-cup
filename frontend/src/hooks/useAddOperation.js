@@ -45,8 +45,10 @@ export function useAddOperation() {
             ? Number(newData.amount)
             : null;
 
+      const tempId = `temp-${Date.now()}`;
       const optimisticOp = {
-        id: `temp-${Date.now()}`,
+        _clientKey: tempId,
+        id: tempId,
         amount: Number(newData.amount),
         type: newData.type,
         category_id: newData.category_id,
