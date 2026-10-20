@@ -165,23 +165,28 @@ export function applyOptimisticTransaction(queryClient, op) {
   ]);
 
   // 2. Add to ["operations", "month", ...]
-  queryClient.setQueriesData({ queryKey: ["operations", "month"] }, (old = [], query) => {
-    const monthPrefix = query.queryKey[2];
+  const monthQueries = queryClient.getQueryCache().findAll({ queryKey: ["operations", "month"] });
+  for (const q of monthQueries) {
+    const monthPrefix = q.queryKey[2];
     if (monthPrefix && op.date?.startsWith(monthPrefix)) {
-      return [op, ...(Array.isArray(old) ? old.filter((item) => item.id !== op.id) : [])];
+      queryClient.setQueryData(q.queryKey, (old = []) => [
+        op,
+        ...(Array.isArray(old) ? old.filter((item) => item.id !== op.id) : []),
+      ]);
     }
-    return old;
-  });
+  }
 
   // 3. Add to ["recent-operations", type]
-  queryClient.setQueriesData({ queryKey: ["recent-operations"] }, (old = [], query) => {
-    const qType = query.queryKey[1];
+  const recentQueries = queryClient.getQueryCache().findAll({ queryKey: ["recent-operations"] });
+  for (const q of recentQueries) {
+    const qType = q.queryKey[1];
     if (!qType || qType === op.type) {
-      const filtered = Array.isArray(old) ? old.filter((item) => item.id !== op.id) : [];
-      return [op, ...filtered].slice(0, 10);
+      queryClient.setQueryData(q.queryKey, (old = []) => {
+        const filtered = Array.isArray(old) ? old.filter((item) => item.id !== op.id) : [];
+        return [op, ...filtered].slice(0, 10);
+      });
     }
-    return old;
-  });
+  }
 
   // 4. Update metrics (dashboard & banks)
   mutateDashboardAndBankMetrics(queryClient, op, 1);
@@ -231,24 +236,30 @@ export function applyOptimisticUpdate(queryClient, id, updatedOp, prevOp) {
 
   queryClient.setQueryData(["operations"], updateInList);
 
-  queryClient.setQueriesData({ queryKey: ["operations", "month"] }, (old = [], query) => {
-    const monthPrefix = query.queryKey[2];
-    if (!monthPrefix) return updateInList(old);
-    const inMonth = updatedOp.date?.startsWith(monthPrefix);
-    const existed = Array.isArray(old) && old.some((item) => item.id === id);
-    if (inMonth) {
-      return existed ? updateInList(old) : [updatedOp, ...old];
-    }
-    return existed ? old.filter((item) => item.id !== id) : old;
-  });
+  const monthQueries = queryClient.getQueryCache().findAll({ queryKey: ["operations", "month"] });
+  for (const q of monthQueries) {
+    const monthPrefix = q.queryKey[2];
+    queryClient.setQueryData(q.queryKey, (old = []) => {
+      if (!monthPrefix) return updateInList(old);
+      const inMonth = updatedOp.date?.startsWith(monthPrefix);
+      const existed = Array.isArray(old) && old.some((item) => item.id === id);
+      if (inMonth) {
+        return existed ? updateInList(old) : [updatedOp, ...old];
+      }
+      return existed ? old.filter((item) => item.id !== id) : old;
+    });
+  }
 
-  queryClient.setQueriesData({ queryKey: ["recent-operations"] }, (old = [], query) => {
-    const qType = query.queryKey[1];
-    if (!qType || qType === updatedOp.type) {
-      return updateInList(old);
-    }
-    return Array.isArray(old) ? old.filter((item) => item.id !== id) : old;
-  });
+  const recentQueries = queryClient.getQueryCache().findAll({ queryKey: ["recent-operations"] });
+  for (const q of recentQueries) {
+    const qType = q.queryKey[1];
+    queryClient.setQueryData(q.queryKey, (old = []) => {
+      if (!qType || qType === updatedOp.type) {
+        return updateInList(old);
+      }
+      return Array.isArray(old) ? old.filter((item) => item.id !== id) : old;
+    });
+  }
 
   // Reconcile metrics: revert previous op contribution, then apply updated op contribution
   if (prevOp) {
