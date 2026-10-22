@@ -56,6 +56,17 @@ test("evaluateMathExpression evaluates expressions with grouped digits", () => {
   assert.strictEqual(million.value, 750000);
 });
 
+test("evaluateMathExpression ignores words containing both letters and digits", () => {
+  assert.strictEqual(evaluateMathExpression("iphone13").value, null);
+  assert.strictEqual(evaluateMathExpression("iphone13 500").value, 500);
+  assert.strictEqual(evaluateMathExpression("500 + 200 iphone13").value, 700);
+  assert.strictEqual(evaluateMathExpression("кв12 2500").value, 2500);
+  assert.strictEqual(evaluateMathExpression("100к обед").value, null);
+  assert.strictEqual(evaluateMathExpression("100к 350").value, 350);
+  assert.strictEqual(evaluateMathExpression("audi a4 2000").value, 2000);
+  assert.strictEqual(evaluateMathExpression("iphone-13 50000").value, 50000);
+});
+
 test("parseSmartInput correctly parses amounts with digit grouping", () => {
   const res1 = parseSmartInput({ input: "1 500 такси" });
   assert.strictEqual(res1.amount, 1500);
@@ -68,6 +79,14 @@ test("parseSmartInput correctly parses amounts with digit grouping", () => {
   const res3 = parseSmartInput({ input: "1 000 + 2 500 обед" });
   assert.strictEqual(res3.amount, 3500);
   assert.strictEqual(res3.comment, "обед");
+
+  const res4 = parseSmartInput({ input: "iphone13 50000" });
+  assert.strictEqual(res4.amount, 50000);
+  assert.strictEqual(res4.comment, "iphone13");
+
+  const res5 = parseSmartInput({ input: "кв12 2500" });
+  assert.strictEqual(res5.amount, 2500);
+  assert.strictEqual(res5.comment, "кв12");
 });
 
 test("sortCategoriesByPopularity sorts categories according to 1-year popularity", () => {

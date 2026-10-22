@@ -40,3 +40,5 @@ tmp_*.json
 backups/
 *.xlsx
 *.xls
+/*.csv
+!data/categories.csv

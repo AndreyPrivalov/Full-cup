@@ -65,6 +65,22 @@ function renderHighlightedText(text, operationType) {
   });
 }
 
+const STICKY_DATE_STORAGE_KEY = "fc_sticky_date";
+
+function getInitialStickyDate() {
+  if (typeof window !== "undefined" && window.localStorage) {
+    try {
+      const saved = window.localStorage.getItem(STICKY_DATE_STORAGE_KEY);
+      if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return getLocalDateString();
+}
+
 export function SmartTokenInput({
   operationType = "expense",
   onOperationTypeChange,
@@ -74,8 +90,18 @@ export function SmartTokenInput({
 }) {
   const { targetDate: prevMonthTargetDate } = usePrevMonthLatestDate();
 
-  // Sticky date: does not reset upon submission
-  const [date, setDate] = useState(getLocalDateString());
+  // Sticky date: does not reset upon submission or switching sections
+  const [date, setDateState] = useState(getInitialStickyDate);
+  const setDate = useCallback((newDate) => {
+    setDateState(newDate);
+    if (typeof window !== "undefined" && window.localStorage && newDate) {
+      try {
+        window.localStorage.setItem(STICKY_DATE_STORAGE_KEY, newDate);
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
   const [openDateMenu, setOpenDateMenu] = useState(false);
 
   // List of tokens representing the formatted sentence
@@ -97,6 +123,7 @@ export function SmartTokenInput({
   const highlightRefs = useRef({});
   const dateMenuRef = useRef(null);
   const manualDateInputRef = useRef(null);
+  const suppressDropdownOnFocusRef = useRef(false);
 
   // Filter categories by current operationType and sort by popularity
   const currentCategories = useMemo(
@@ -425,8 +452,10 @@ export function SmartTokenInput({
     const bank_amount = bank_ids.length > 0 ? (bankAmountValue ?? totalAmount) : null;
 
     // Extract comment from mainText by removing math tokens, operators, and bank keywords
+    // Only remove standalone numbers, preserving words with letters and digits like iphone13 or кв12
     const comment = mainText
-      .replace(/(\d+(?:[.,]\d+)?|[+\-*/])/g, " ")
+      .replace(/(?<![a-zA-Zа-яёА-ЯЁ0-9_])\d+(?:[.,]\d+)?(?![a-zA-Zа-яёА-ЯЁ0-9_])/g, " ")
+      .replace(/[+\-*/]/g, " ")
       .replace(
         /(?:^|\s)(?:из\s+них|них|в\s+банк[и]?|на\s+банк[и]?|в\s+сч[её]т[а]?|на\s+сч[её]т[а]?|в\s+кайф[ы]?|на\s+кайф[ы]?|банк[и]?|сч[её]т[а]?|кайф[ы]?|доля|часть)(?:\s|$)/gi,
         " ",
@@ -454,10 +483,11 @@ export function SmartTokenInput({
     setOpenDateMenu(false);
     setSelectedIndex(0);
 
-    // Remove focus from input so all dropdowns disappear immediately upon entering the operation
-    if (document.activeElement && typeof document.activeElement.blur === "function") {
-      document.activeElement.blur();
-    }
+    // Keep focus in the input field, suppressing dropdown on initial refocus after submit
+    suppressDropdownOnFocusRef.current = true;
+    setTimeout(() => {
+      inputRefs.current[newToken.id]?.focus();
+    }, 0);
   }, [
     mathData.value,
     existingCategoryToken,
@@ -474,6 +504,10 @@ export function SmartTokenInput({
   const handleTokenFocus = useCallback(
     (tokenId) => {
       setActiveTokenId(tokenId);
+      if (suppressDropdownOnFocusRef.current) {
+        suppressDropdownOnFocusRef.current = false;
+        return;
+      }
       if (!existingCategoryToken) {
         setDropdownType("category");
         setDropdownOpen(true);
@@ -486,6 +520,7 @@ export function SmartTokenInput({
   // Handle token click
   const handleTokenClick = useCallback(
     (tokenId) => {
+      suppressDropdownOnFocusRef.current = false;
       setActiveTokenId(tokenId);
       if (!existingCategoryToken && !dropdownOpen) {
         setDropdownType("category");
@@ -498,6 +533,7 @@ export function SmartTokenInput({
 
   // Handle input text changes
   const handleTokenChange = (tokenId, e) => {
+    suppressDropdownOnFocusRef.current = false;
     const rawVal = e.target.value;
     const rawCursorPos = e.target.selectionStart ?? rawVal.length;
 
@@ -1155,28 +1191,39 @@ export function SmartTokenInput({
                 </button>
 
                 {/* 3. Задать конкретную дату через календарь */}
-                <button
-                  type="button"
-                  className="o-smart-popover-item"
-                  data-active={date !== getLocalDateString() && date !== prevMonthTargetDate}
-                  onClick={() => {
-                    if (manualDateInputRef.current) {
-                      try {
-                        manualDateInputRef.current.showPicker();
-                      } catch {
-                        manualDateInputRef.current.focus();
-                      }
-                    }
+                <div
+                  className="a-flex a-flex-col a-gap-4"
+                  style={{
+                    borderTop: "1px solid var(--clr-border-secondary)",
+                    marginTop: "var(--spc-2)",
+                    paddingTop: "var(--spc-6)",
+                    paddingLeft: "var(--spc-8)",
+                    paddingRight: "var(--spc-8)",
+                    paddingBottom: "var(--spc-4)",
                   }}
-                  style={{ position: "relative" }}
                 >
-                  <span>Задать</span>
+                  <label
+                    htmlFor="smart-date-manual-input"
+                    className="a-text-xs a-clr-text-secondary"
+                  >
+                    Задать дату
+                  </label>
                   <input
+                    id="smart-date-manual-input"
                     ref={manualDateInputRef}
                     type="date"
+                    className="m-input"
+                    data-size="s"
                     value={String(date).slice(0, 10)}
-                    tabIndex={-1}
-                    aria-hidden="true"
+                    onClick={(e) => {
+                      if (typeof e.target.showPicker === "function") {
+                        try {
+                          e.target.showPicker();
+                        } catch {
+                          // ignore
+                        }
+                      }
+                    }}
                     onChange={(e) => {
                       if (e.target.value) {
                         setDate(e.target.value);
@@ -1186,19 +1233,11 @@ export function SmartTokenInput({
                       }
                     }}
                     style={{
-                      position: "absolute",
-                      inset: 0,
-                      width: 0,
-                      height: 0,
-                      opacity: 0,
-                      pointerEvents: "none",
-                      border: "none",
-                      outline: "none",
-                      padding: 0,
-                      margin: 0,
+                      cursor: "pointer",
+                      width: "100%",
                     }}
                   />
-                </button>
+                </div>
               </div>
             </div>
           )}

@@ -442,8 +442,17 @@ export function evaluateMathExpression(expr) {
   // 2. Normalize spaces within numbers: '1 500' -> '1500'
   clean = normalizeNumberSpaces(clean);
 
-  // 3. Match arithmetic tokens
-  const tokens = clean.match(/(\d+(?:\.\d+)?|[+\-*/])/g);
+  // 3. Remove words containing both letters and digits (without spaces) so they are not parsed as math numbers:
+  // e.g. "iphone13", "100k", "кв12", "a1", "iphone-13"
+  clean = clean.replace(
+    /(?:^|(?<=[^a-zA-Zа-яёА-ЯЁ0-9_]))(?=[a-zA-Zа-яёА-ЯЁ0-9_-]*[a-zA-Zа-яёА-ЯЁ])(?=[a-zA-Zа-яёА-ЯЁ0-9_-]*\d)[a-zA-Zа-яёА-ЯЁ0-9_-]+(?![a-zA-Zа-яёА-ЯЁ0-9_])/gi,
+    " ",
+  );
+
+  // 4. Match arithmetic tokens
+  const tokens = clean.match(
+    /(?:(?<![a-zA-Zа-яёА-ЯЁ0-9_])\d+(?:\.\d+)?(?![a-zA-Zа-яёА-ЯЁ0-9_])|[+\-*/])/g,
+  );
   if (!tokens || tokens.length === 0) {
     return { value: null, expression: null, terms: [] };
   }
@@ -692,7 +701,7 @@ export const BANK_KEYWORDS_REGEX = new RegExp(`(?:^|\\s)(?:${BANK_KEYWORDS_SOURC
 export const BANK_KEYWORD_HIGHLIGHT_REGEX = new RegExp(`^(?:${BANK_KEYWORDS_SOURCE})$`, "i");
 
 export const BANK_KEYWORD_SPLIT_REGEX = new RegExp(
-  `((?<![а-яa-z0-9ё])(?:${BANK_KEYWORDS_SOURCE})(?![а-яa-z0-9ё])|\\d+(?:\\s\\d{3,})*(?:[.,]\\d+)?|[+\\-*/]|\\s+|[^\\s\\d+\\-*/]+)`,
+  `((?<![а-яa-z0-9ё])(?:${BANK_KEYWORDS_SOURCE})(?![а-яa-z0-9ё])|(?=[a-zA-Zа-яёА-ЯЁ0-9_-]*[a-zA-Zа-яёА-ЯЁ])(?=[a-zA-Zа-яёА-ЯЁ0-9_-]*\\d)[a-zA-Zа-яёА-ЯЁ0-9_-]+|\\d+(?:\\s\\d{3,})*(?:[.,]\\d+)?|[+*/-]|\\s+|[^\\s\\d+*/-]+)`,
   "gi",
 );
 

@@ -32,9 +32,9 @@ Styles are monolithic (including font size, line-height, and font weight). Ст�
 Spacing is based on a fixed, simple pixel scale defined directly in tokens. This single scale applies identically to both horizontal and vertical spacing (margins, paddings, gaps, gutters).
 - **Scale Values:** `0`, `2`, `4`, `8`, `12`, `16`, `20`, `24`, `32`, `40`, `48`, `64`, `80`.
 
-### Radii
+### Radii & Elevation
 - **Border Radius:** `XS`, `S`, `M`, `L`, `Circle`.
-- **No Shadows:** Shadows are completely excluded from the design system. Elevation is expressed via background contrast and spacing.
+- **Restrained Shadows (Z-Axis Only):** Shadows are completely excluded as surface borders or card dividers. Shadows are permitted strictly on the Z-axis (dropdowns, popovers, modals) to denote elevation above the page.
 
 ---
 
@@ -69,12 +69,4 @@ Complex independent blocks, assembled from molecules. They inherit spacing and t
 - **Lists:** Ordered and Unordered lists.
 - **Table:** Complex assembly of `TH` and `TD` molecules.
 
----
 
-## Global Design Constraints
-- **Minimalistic Styling:** Use constraint of means.
-- **Spacing Hierarchy:** Use spacing instead of visual dividers.
-- **Consistency:** Similar logic -> similar looks.
-- **Readability:** High contrast, legible fonts.
-- **Layout Stability:** Predictable, zero layout shifts.
-- **Atomic Naming:** strictly use `--clr-*`, `--spc-*`, `a-*`, `m-*`, `o-*`.

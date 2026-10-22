@@ -64,19 +64,7 @@ export default function App() {
 
       if (isInput || e.ctrlKey || e.metaKey) return;
 
-      if (!e.altKey && (e.key === "0" || e.key === "1")) {
-        navigate("/month");
-        setTimeout(() => {
-          const smartInput = document.querySelector(".o-smart-entry-input");
-          smartInput?.focus();
-        }, 50);
-      } else if (!e.altKey && e.key === "2") {
-        navigate("/kaif");
-      } else if (!e.altKey && e.key === "3") {
-        navigate("/savings");
-      } else if (!e.altKey && e.key === "4") {
-        navigate("/operations");
-      } else if (e.key === "n" || e.key === "N") {
+      if (e.key === "n" || e.key === "N") {
         e.preventDefault();
         navigate("/month");
         setTimeout(() => {
